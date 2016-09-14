@@ -11,34 +11,80 @@
 #define REPULSION_FORCE 150
 #define ATTRACTION_FORCE 40
 
+
+#define PHOTOSYNTHESIS_MAX 10.0f
+
 #define G -9.81f
 
 struct Global {
 } g;
 
 struct Particle {
-	xyz r, v, f; 		// position, velocity, force
+	xyz r, v, f; 				// position, velocity, force
+	xyz signal;
+	xyz sense;
 	float density;
 	float radius;
-	float color; 		// display color
+	float energy;
+	float color; 				// display color
+	float alpha;
+
+	//Genome:
+
+	float phoSyAbility; 		// Ability to photosynthesize
+	float moveAbility;			// Ability to move
+	float senseAbility;			// Ability to sense surroundings
+
+	bool  invertSignal;			// Inverts signal before acting or transmitting
+	float recieveSigAbility;  	// Ability to recieve signals	
+	float sendSigAbility;		// Ability to send signals
 };
 
-// initialize randomly in a box
+// initialize particles
 FUNC_EACH(init,
 
-	p.r = make_xyz_uniform() * W; 	//Random position
-	p.radius = rnd_uniform(); 	//Random size (5-7)
-	p.density = rnd_normal()+0.5f; 		//Random density (0.5-1.5)
+	p.energy = 10.0f;
+	p.r = make_xyz_uniform() * W; 					//Random position within box
+	p.radius = abs(rnd_normal()); 					//Random size
+	p.density = abs(rnd_normal()+FLUID_DENSITY); 	//Random density
+	p.alpha = 1.0f;
+	
+	p.invertSignal 		= rnd_uniform() < 0.5f;
+	p.phoSyAbility 		= abs(rnd_normal());
+	p.moveAbility 		= abs(rnd_normal());
+	p.senseAbility 		= abs(rnd_normal());
+	p.recieveSigAbility = abs(rnd_normal());
+	p.sendSigAbility 	= abs(rnd_normal());
 
-	p.v = make_xyz_uniform()*5;			//Random velocity
+	//p.color = p.moveAbility;
+	
+	
+	p.sense  = make_xyz(0, 0, 0);
+	p.signal = make_xyz_uniform()*5;	//Random initial signal
 )
 
 // linear repulsion + attraction at distance
 FUNC_PAIR(pair,
 	float ratio = dr / range;
+
 	xyz f = u * (REPULSION_FORCE * (1-ratio) - ATTRACTION_FORCE * ratio);
 	addVector(p1.f, f);
 	addVector(p2.f, -f);
+
+	// Update sense values
+	addVector(p1.sense, 2*(-u));	// These should be normalized...
+	addVector(p2.sense, 2*u);
+
+	// Update signal values with sense
+	addVector(p1.signal, p1.sense * p1.senseAbility);
+	addVector(p2.signal, p2.sense * p2.senseAbility);
+
+	// Transmit signal
+	addVector(p1.signal, p2.signal * p1.recieveSigAbility * p2.sendSigAbility * (p1.invertSignal ? -1 : 1));
+	addVector(p2.signal, p1.signal * p2.recieveSigAbility * p1.sendSigAbility * (p2.invertSignal ? -1 : 1));
+	
+	p1.color = xyz_len(p1.signal)/100;
+	p2.color = xyz_len(p2.signal)/100;
 )
 
 
@@ -48,9 +94,37 @@ FUNC_EACH(buoyancy,
 	p.f.y += (p.density - FLUID_DENSITY) * G * volume;
 )
 
+// photosynthesis 
+FUNC_EACH(photosynthesis,
+	p.energy += PHOTOSYNTHESIS_MAX * p.phoSyAbility;
+)
+
+// move 
+FUNC_EACH(move,
+	xyz f = p.signal * p.moveAbility * 0.001f;
+	addVector(p.f, f);
+)
+
+// handle energy usage
+FUNC_EACH(handleEnergy,
+	p.energy -= (
+		p.moveAbility * 5 + 
+		p.senseAbility * 3
+	);
+	//p.color = p.energy;
+
+	// If dead
+	if(p.energy <= 0)
+	{
+		p.alpha = 0.5f;
+		p.density = FLUID_DENSITY;
+		p.phoSyAbility = p.moveAbility = p.senseAbility = p.recieveSigAbility = p.sendSigAbility = 0.0f;
+	}
+)
+
 // Euler integration
 FUNC_EACH(integrate,
-	p.color = xyz_len(p.f) / 50.0f;
+	//p.color = xyz_len(p.f) / 50.0f;
 
 	p.v += p.f * DT;
 	p.r += p.v * DT;
@@ -67,6 +141,15 @@ FUNC_EACH(boundary,
 	if (p.r.z > W) { p.v.z = 0.9f * (W - p.r.z) / DT; p.r.z = W; }
 )
 
+// deflate old signals so that they won't overflow 
+FUNC_EACH(deflateSignals,
+	p.signal = xyz_norm(p.signal);
+	p.sense = xyz_norm(p.signal);
+	
+	//p.color = p.signal;
+)
+
+
 // simulation
 int main(int argc, char **argv) {
 	Fluidix<> *fx = new Fluidix<>(&g);
@@ -82,8 +165,12 @@ int main(int argc, char **argv) {
 		// execute interactions
 		fx->runPair(pair(), A, A, RANGE);
 		fx->runEach(buoyancy(), A);
+		fx->runEach(move(), A);
 		fx->runEach(integrate(), A);
+		fx->runEach(handleEnergy(), A);
 		fx->runEach(boundary(), A);
+		fx->runEach(deflateSignals(), A);
+		fx->runEach(photosynthesis(), A);
 
 		printf("%.1f ms\n", fx->getTimer());
 
