@@ -7,7 +7,6 @@
 
 using namespace std;
 
-
 default_random_engine rndGen(time(0));
 
 class Genome {

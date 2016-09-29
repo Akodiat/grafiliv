@@ -11,18 +11,24 @@
 #define RANGE 3.0f
 
 #define REPULSION_FORCE 150
-#define ATTRACTION_FORCE 40
+#define ATTRACTION_FORCE 150
 
 #define FLUID_DENSITY 1.0f
 #define G -9.81f
 
 using namespace std;
 
-enum CellType {Photo, Blank, Sense, Move, Ballast};
+enum CellType {Photo, Pred, Blank};
+
+struct Organism {
+	Genome genome;
+	int linkSet;
+
+	Organism(Genome g): genome(g), linkSet(-1) {}
+};
 
 struct Global {
-	vector<Genome> organisms;
-	//int *toGrow;
+	vector<Organism> organisms;
 } g;
 
 struct Particle {
@@ -74,7 +80,11 @@ FUNC_EACH(boundary,
 		if (p.r.y < 0) { p.v.y = 0.9f * (0 - p.r.y) / DT; p.r.y = 0; }
 		if (p.r.y > W) { p.v.y = 0.9f * (W - p.r.y) / DT; p.r.y = W; }
 	} else {
-		if (p.r.y < 0) p.r.y = W;
+		if (p.r.y < 0) {
+			p.r.x = rnd_uniform() * W;
+			p.r.z = rnd_uniform() * W;
+			p.r.y = W;
+		}
 	}
 )
 
@@ -82,22 +92,19 @@ FUNC_PAIR(particlePair,
 	float ratio = (dr - p1.radius - p2.radius) / (range - p1.radius - p2.radius);
 	//float ratio = dr/range;
 	float attraction = 0.0f;
-	if(p1.organism == p2.organism)
+	if((p1.isCell && p2.isCell) && (p1.organism == p2.organism))
 		attraction = ATTRACTION_FORCE * ratio;
 	xyz f = u * (REPULSION_FORCE * (1-ratio) - attraction);
 
 	addVector(p1.f, f);
 	addVector(p2.f, -f);
 
-	if(p1.type == Photo && !p2.isCell){
-		p1.toGrow = p2_index;
-		//maxInteger(g.toGrow[p1_index], p2_index);
-		printf("Photosynthesis! Cell %i and particle %i\n", p1_index, p2_index);
-	}
-	else if(p2.type == Photo && !p1.isCell) {
-		p2.toGrow = p1_index;
-		//maxInteger(g.toGrow[p2_index], p1_index);
-		printf("Photosynthesis! Cell %i and particle %i\n", p2_index, p1_index);
+	if(p1.organism != p2.organism){
+		if(p1.type == Photo && !p2.isCell) p1.toGrow = p2_index;
+		else if(p2.type == Photo && !p1.isCell)	p2.toGrow = p1_index;
+	
+		else if(p1.type == Pred && p2.isCell) p1.toGrow = p2_index;
+		else if(p2.type == Pred && p1.isCell) p2.toGrow = p1_index;
 	}
 /*
 	if(p1.type == Sense) p1.signal += 0.1f;
@@ -121,78 +128,80 @@ void setDefaultCellValues(Particle *cell) {
 }
 
 // Initialize new organism, not inheriting anything
-void initializeNewOrganism(Particle *cell, Global &g) {
+void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
 	int inputs = 4;
-	int outputs = 5;
+	int outputs = 3;
 
-	Genome genome(inputs, outputs);
-	genome.mutate();
-	genome.printMathematica();
+	Organism o(Genome(inputs, outputs));
+	o.linkSet = fx->createLinkSet();
+	o.genome.mutate();
+	o.genome.printMathematica();
 
-	g.organisms.push_back(genome);
+	g.organisms.push_back(o);
 	cell->organism	= g.organisms.size()-1;
 	cell->r			= make_xyz_uniform() * W;
 	cell->origin		= cell;
 	setDefaultCellValues(cell);
 
 	vector<float> input(inputs, 0.0f);
-	vector<float> output = genome.getOutput(input);
+	vector<float> output = o.genome.getOutput(input);
 
-	float max = output[0];
+	float max = output[0]; cell->type = (CellType) 0;
 	for(int j=1; j<output.size(); j++) {
 		if(output[j] > max) {
 			max = output[j];
-			cell->type = Photo; //(CellType) j;
+			cell->type = (CellType) j;
 		}
 	}
 	switch(cell->type) {
 		case Photo:		cell->color = 0.5f; break; // Green
+		case Pred:		cell->color = 1.0f; break; // Red
 		case Blank:		cell->color = 0.7f; break; // Yellow
-		case Sense:		cell->color = 0.3f; break; // Cyan
-		case Move:		cell->color = 1.0f; break; // Red
-		case Ballast:	cell->color = 0.0f; break; // Blue
+		//case Sense:		cell->color = 0.3f; break; // Cyan
+		//case Move:		cell->color = 1.0f; break; // Red
+		//case Ballast:	cell->color = 0.0f; break; // Blue
 	}
 }
 
 // Initialize organism, inheriting from parent
-void initializeOffspring(Particle *parent, Particle *child, Global &g) {
-	Genome genome = g.organisms[parent->organism];
-	genome.mutate();
-	genome.printMathematica();
+void initializeOffspring(Fluidix<> *fx, Particle *parent, Particle *child, Global &g) {
+	Organism o = Organism(g.organisms[parent->organism]);
+	o.linkSet = fx->createLinkSet();
+	o.genome.mutate();
+	o.genome.printMathematica();
 
-	g.organisms.push_back(genome);
+	g.organisms.push_back(o);
 	child->organism = g.organisms.size()-1;
 }
 
-void growCell(Particle *parent, Particle *child) {
+void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
+	normal_distribution<float> rndNormal(0.0f, 1.0f);
 	
-	//	Copy constructor?
+	//	Copy constructor
 	*child = Particle(*parent);
-	setDefaultCellValues(child);
+	
 	// Displace particles from each other
-	xyz displacement = xyz_norm(make_xyz_uniform()) * parent->radius;		
+	xyz displacement = xyz_norm(
+		make_xyz(
+			rndNormal(rndGen),
+			rndNormal(rndGen),
+			rndNormal(rndGen)
+		)) * parent->radius;
+		
 	parent->r -= displacement;
 	child->r  += displacement;
 
-	Genome genome = g.organisms[parent->organism];
-	printf("A (%.2f,%.2f,%.2f)\n",
-		child->origin->r.x,
-		child->origin->r.y,
-		child->origin->r.z
-	);
-	xyz dr = parent->r - parent->origin->r;
-	printf("B (%.2f,%.2f,%.2f)\n",
-		child->origin->r.x,
-		child->origin->r.y,
-		child->origin->r.z
-	);
+	Organism o = g.organisms[parent->organism];
+
+	xyz dr = child->r - child->origin->r;
+
 	vector<float> input;
 	input.push_back(dr.x);
 	input.push_back(dr.y);
 	input.push_back(dr.z);
 	input.push_back(xyz_len(dr));
 
-	vector<float> output = genome.getOutput(input);
+	vector<float> output = o.genome.getOutput(input);
 
 	//printf("input: ");  for(float i : input)  printf("%.2f ",i); printf("\t");
 	//printf("output: "); for(float o : output) printf("%.2f ",o); printf("\n");
@@ -205,12 +214,10 @@ void growCell(Particle *parent, Particle *child) {
 		}
 	}
 	switch(child->type) {
-		case Blank:		child->color = 0.6f; break;
-		case Sense:		child->color = 0.3f; break;
-		case Move:		child->color = 1.0f; break;
-		case Ballast:	child->color = 0.0f; break;
+		case Photo:		child->color = 0.5f; break; // Green
+		case Pred:		child->color = 1.0f; break; // Red
+		case Blank:		child->color = 0.7f; break; // Yellow
 	}
-	printf("C\n");
 }
 
 int main() {
@@ -224,10 +231,10 @@ int main() {
 	
 	Particle *p = fx->getParticleArray(setA);
 	for(int i=0; i<10; i++)
-		initializeNewOrganism(&p[i], g);
+		initializeNewOrganism(fx, &p[i], g);
 	fx->applyParticleArray(setA);
 	
-	for(int step=0; step < 10000; step++) {
+	for(int step=0; step < 100000; step++) {
 		fx->runPair(particlePair(), setA, setA, RANGE);
 		fx->runEach(buoyancy(), setA);
 		fx->runEach(boundary(), setA);
@@ -238,7 +245,11 @@ int main() {
 				int parent = i;
 				int child = p[i].toGrow;
 				printf("toGrow! parent: %i, child: %i\n", parent, child);
-				growCell(&p[parent], &p[child]);
+				growCell(fx, &p[parent], &p[child]);
+				fx->addLink(
+					g.organisms[p[i].organism].linkSet,
+					setA, parent, setA, child
+				);
 				p[i].toGrow = -1;
 				fx->applyParticleArray(setA);
 			}
