@@ -8,8 +8,11 @@
 #define BOX_MAX 20
 #define BOX_MIN 1
 
-#define W 100
-#define N 10000
+#define W 200
+#define N 40000
+#define N_ORIGIN_CELLS 100
+#define N_STEPS 100000
+
 #define RANGE 3.0f
 
 #define REPULSION_FORCE 150
@@ -20,8 +23,12 @@
 
 using namespace std;
 
-enum CellType {Photo, Pred, Move};
-enum ParticleType {Cell, Energy, Pellet};
+enum CellType {Photo, Pred, Sense, Move,
+	N_CELL_TYPES
+};
+enum ParticleType {Cell, Energy, Pellet,
+	N_PARTICLE_TYPES
+};
 
 struct Organism {
 	Genome genome;
@@ -36,6 +43,7 @@ struct Global {
 
 struct Particle {
 	ParticleType particleType;
+	float growthProb;
 	xyz r, v, f;
 	float color;
 	float radius;
@@ -49,7 +57,7 @@ struct Particle {
 };
 
 FUNC_EACH(init,
-	p.r = (make_xyz_uniform() * W) + make_xyz(0 , W, 0);
+	p.r = (make_xyz_uniform() * W) + make_xyz(0, W, 0);
 	p.color = 0.7f;
 	p.alpha = 0.3f;
 	p.radius = 0.5f;
@@ -65,23 +73,36 @@ FUNC_EACH(integrate,
 	p.v *= 0.97f;
 )
 
+
+#define turnIntoPellet(p) {			\
+	p.particleType = Pellet;			\
+	p.lifeTime = PELLET_LIFETIME;	\
+	p.density = FLUID_DENSITY * 2;	\
+	p.alpha = 0.5f;						\
+	p.organism = NULL;					\
+}											\
+
+#define turnIntoEnergy(p) {			\
+	p.particleType = Energy;			\
+	p.r = make_xyz(						\
+		rnd_uniform()*W,				\
+		W,									\
+		rnd_uniform()*W					\
+	);										\
+	p.color = 0.7f;						\
+	p.alpha = 0.3f;						\
+	p.radius = 0.5f;					\
+	p.density = FLUID_DENSITY * 2;	\
+}
+
 FUNC_EACH(age,
 	if (p.particleType != Energy) {
 		p.lifeTime -= DT;
 		if (p.lifeTime <= 0) {
 			if (p.particleType == Cell){
-				p.particleType = Pellet;
-				p.lifeTime = PELLET_LIFETIME;
-				p.density = FLUID_DENSITY * 2;
-				p.alpha = 0.5f;
-				p.organism = NULL;
+				turnIntoPellet(p);
 			} else if (p.particleType == Pellet){
-				p.particleType = Energy;
-				p.r = make_xyz(rnd_uniform()*W , W, rnd_uniform()*W);
-				p.color = 0.7f;
-				p.alpha = 0.3f;
-				p.radius = 0.5f;
-				p.density = FLUID_DENSITY * 2;
+				turnIntoEnergy(p);
 			}
 		}
 	}
@@ -113,6 +134,16 @@ FUNC_EACH(boundary,
 	}
 )
 
+#define harvestParticle(a, b, b_index) { 		\
+	if(rnd_uniform() < a.growthProb)				\
+		a.toGrow = b_index; 							\
+	else {													\
+		a.origin->lifeTime	+= CELL_LIFETIME/2;	\
+		a.lifeTime 			+= 	CELL_LIFETIME/2;	\
+		turnIntoEnergy(b);								\
+	}														\
+}
+
 FUNC_PAIR(particlePair,
 	float ratio = (dr - p1.radius - p2.radius) / (range - p1.radius - p2.radius);
 	//float ratio = dr/range;
@@ -133,15 +164,16 @@ FUNC_PAIR(particlePair,
 			p2.particleType == Cell			// be able to eat
 	)){
 		// Photosynthesis
-		if(p1.type == Photo && p2.particleType == Energy)
-			p1.toGrow = p2_index;
-		else if(p2.type == Photo && p1.particleType == Energy)
-			p2.toGrow = p1_index;
+		if(p1.type == Photo && p2.particleType == Energy) {
+			harvestParticle(p1, p2, p2_index)
+		} else if(p2.type == Photo && p1.particleType == Energy) {
+			harvestParticle(p2, p1, p1_index)
 		// Consume other cells or pellets
-		else if(p1.type == Pred && !p2.particleType == Energy)
-			p1.toGrow = p2_index;
-		else if(p2.type == Pred && !p1.particleType == Energy)
-			p2.toGrow = p1_index;
+		} else if(p1.type == Pred && !p2.particleType == Energy) {
+			harvestParticle(p1, p2, p2_index)
+		} else if(p2.type == Pred && !p1.particleType == Energy) {
+			harvestParticle(p2, p1, p1_index)
+		}
 	}
 /*
 	if(p1.type == Sense) p1.signal += 0.1f;
@@ -167,8 +199,11 @@ void setDefaultCellValues(Particle *cell) {
 
 // Initialize new organism, not inheriting anything
 void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
-	int inputs = 4;
-	int outputs = 3;
+	// Define number of in- and outputs
+	int inputs = 4; 						// X, Y, Z, Dist
+
+	int nonCelltypeOutputs = 1;			// Growth prob
+	int outputs = N_CELL_TYPES + nonCelltypeOutputs;
 
 	Organism o(Genome(inputs, outputs));
 	o.linkSet = fx->createLinkSet();
@@ -181,11 +216,11 @@ void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
 	cell->origin		= cell;
 	setDefaultCellValues(cell);
 
-	vector<float> input(inputs, 0.0f);
+	vector<float> input(inputs, 0.0f); //Input origin
 	vector<float> output = o.genome.getOutput(input);
 
 	float max = output[0]; cell->type = (CellType) 0;
-	for(int j=1; j<output.size(); j++) {
+	for(int j=1; j<N_CELL_TYPES; j++) {
 		if(output[j] > max) {
 			max = output[j];
 			cell->type = (CellType) j;
@@ -199,6 +234,7 @@ void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
 		//case Move:		cell->color = 1.0f; break; // Red
 		//case Ballast:	cell->color = 0.0f; break; // Blue
 	}
+	cell->growthProb = output[N_CELL_TYPES];
 }
 
 // Initialize organism, inheriting from parent
@@ -246,7 +282,7 @@ void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
 	//printf("output: "); for(float o : output) printf("%.2f ",o); printf("\n");
 
 	float max = output[0];
-	for(int j=1; j<output.size(); j++) {
+	for(int j=1; j<N_CELL_TYPES; j++) {
 		if(output[j] > max) {
 			max = output[j];
 			child->type = (CellType) j;
@@ -257,6 +293,7 @@ void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
 		case Pred:		child->color = 1.0f; break; // Red
 		case Move:		child->color = 0.7f; break; // Yellow
 	}
+	child->growthProb = output[N_CELL_TYPES];
 }
 
 int main() {
@@ -269,11 +306,11 @@ int main() {
 	fx->runEach(init(), setA);
 	
 	Particle *p = fx->getParticleArray(setA);
-	for(int i=0; i<10; i++)
+	for(int i=0; i<N_ORIGIN_CELLS; i++)
 		initializeNewOrganism(fx, &p[i], g);
 	fx->applyParticleArray(setA);
 	
-	for(int step=0; step < 100000; step++) {
+	for(int step=0; step < N_STEPS; step++) {
 		fx->runPair(particlePair(), setA, setA, RANGE);
 		fx->runEach(buoyancy(), setA);
 		fx->runEach(boundary(), setA);
