@@ -9,11 +9,12 @@
 #define BOX_MIN 1
 
 #define W 200
-#define N 40000
-#define N_ORIGIN_CELLS 100
-#define N_STEPS 100000
+#define N 30000
+#define N_ORIGIN_CELLS 500
+#define N_STEPS 1000000
 
 #define RANGE 3.0f
+#define MOVE_FACTOR 200
 
 #define REPULSION_FORCE 150
 #define ATTRACTION_FORCE 250
@@ -23,7 +24,7 @@
 
 using namespace std;
 
-enum CellType {Photo, Pred, Sense, Move,
+enum CellType {Photo, Pred, Sense, Move, Ballast, Sex,
 	N_CELL_TYPES
 };
 enum ParticleType {Cell, Energy, Pellet,
@@ -50,8 +51,10 @@ struct Particle {
 	float alpha;
 	float density;
 	float lifeTime;
+	float signal;
 	int organism;
 	int toGrow;
+	bool reproduce;
 	Particle *origin;
 	CellType type;
 };
@@ -105,14 +108,30 @@ FUNC_EACH(age,
 				turnIntoEnergy(p);
 			}
 		}
+		if (p.particleType == Cell && p.origin->particleType != Cell)
+			turnIntoPellet(p);
 	}
 )
 
 FUNC_EACH(buoyancy,
-	//if(p.type == Ballast)
-	//	p.density += sin(p.signal);
+	if(p.particleType == Cell && p.type == Ballast)
+		p.density = clamp(p.density + p.signal, 0.5f, 2.0f);
 	float volume = p.radius * p.radius * PI;
 	p.f.y += (p.density - FLUID_DENSITY) * G * volume;
+)
+
+FUNC_EACH(moveParticle,
+	if(p.particleType == Cell && p.type == Move) {
+		xyz f = xyz_norm(p.origin->r - p.r) * MOVE_FACTOR;
+		addVector(p.f, f);
+	}
+)
+
+FUNC_EACH(reproduce,
+	if(p.particleType == Cell && p.type == Sex) {
+		if(rnd_uniform() < p.signal)
+			p.reproduce = true;
+	}
 )
 
 // bouncing hard wall boundary condition
@@ -175,16 +194,16 @@ FUNC_PAIR(particlePair,
 			harvestParticle(p2, p1, p1_index)
 		}
 	}
-/*
+
 	if(p1.type == Sense) p1.signal += 0.1f;
 	if(p2.type == Sense) p2.signal += 0.1f;
 
 	if(p1.organism == p1.organism){
 		float meanSignal = (p1.signal + p2.signal)/2;
-		meanSignal = sin(meanSignal);
+		//meanSignal = sin(meanSignal);
 		p1.signal = p2.signal = meanSignal;
 	}
-*/
+
 	//p1.color = p1.signal;
 	//p2.color = p2.signal;
 )
@@ -214,6 +233,7 @@ void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
 	cell->organism	= g.organisms.size()-1;
 	cell->r			= make_xyz_uniform() * W;
 	cell->origin		= cell;
+	cell->reproduce	= false;
 	setDefaultCellValues(cell);
 
 	vector<float> input(inputs, 0.0f); //Input origin
@@ -230,22 +250,23 @@ void initializeNewOrganism(Fluidix<> *fx, Particle *cell, Global &g) {
 		case Photo:		cell->color = 0.5f; break; // Green
 		case Pred:		cell->color = 1.0f; break; // Red
 		case Move:		cell->color = 0.7f; break; // Yellow
-		//case Sense:		cell->color = 0.3f; break; // Cyan
-		//case Move:		cell->color = 1.0f; break; // Red
-		//case Ballast:	cell->color = 0.0f; break; // Blue
+		case Sense:		cell->color = 0.0f; break; // Blue
+		case Ballast:	cell->color = 0.3f; break; // Cyan
+		case Sex:			cell->color = 0.8f; break; // Orange?
 	}
 	cell->growthProb = output[N_CELL_TYPES];
 }
 
 // Initialize organism, inheriting from parent
-void initializeOffspring(Fluidix<> *fx, Particle *parent, Particle *child, Global &g) {
-	Organism o = Organism(g.organisms[parent->organism]);
+void initializeOffspring(Fluidix<> *fx, Particle *cell, Global &g) {
+	Organism o = Organism(g.organisms[cell->organism]);
 	o.linkSet = fx->createLinkSet();
 	o.genome.mutate();
 	o.genome.printMathematica();
-
 	g.organisms.push_back(o);
-	child->organism = g.organisms.size()-1;
+	cell->organism 	= g.organisms.size()-1;
+	cell->origin		= cell;
+	cell->reproduce	= false;
 }
 
 void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
@@ -292,6 +313,9 @@ void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
 		case Photo:		child->color = 0.5f; break; // Green
 		case Pred:		child->color = 1.0f; break; // Red
 		case Move:		child->color = 0.7f; break; // Yellow
+		case Sense:		child->color = 0.0f; break; // Blue
+		case Ballast:	child->color = 0.3f; break; // Cyan
+		case Sex:			child->color = 0.8f; break; // Orange?
 	}
 	child->growthProb = output[N_CELL_TYPES];
 }
@@ -312,6 +336,7 @@ int main() {
 	
 	for(int step=0; step < N_STEPS; step++) {
 		fx->runPair(particlePair(), setA, setA, RANGE);
+		fx->runEach(moveParticle(), setA);
 		fx->runEach(buoyancy(), setA);
 		fx->runEach(boundary(), setA);
 		fx->runEach(integrate(), setA);
@@ -331,6 +356,8 @@ int main() {
 				p[i].toGrow = -1;
 				fx->applyParticleArray(setA);
 			}
+			else if(p[i].reproduce)
+				initializeOffspring(fx, &p[i], g);
 		}
 
 		if (step % 10 == 0) {
