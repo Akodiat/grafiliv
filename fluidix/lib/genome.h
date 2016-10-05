@@ -4,6 +4,7 @@
 #define MUTATION_PROB 0.7f
 
 #include <random>
+#include <time.h>
 
 using namespace std;
 
@@ -59,6 +60,8 @@ private:
 
 	int nInputs;
 	int nOutputs;
+	
+	bool initialized;
 
 	// Number of times to propagate values
 	int nActivationCycles = 1;
@@ -87,14 +90,14 @@ private:
 			// Make sure the connection doesn't already exist
 			for(int i=0; i<connections.size(); i++) {
 				if(connections[i].in == in && connections[i].out == out) {
-					printf("in=%d, out=%d already exists, trying another connection\n", in, out);
+					//printf("in=%d, out=%d already exists, trying another connection\n", in, out);
 					in  = connections.size() * rndUniform(rndGen);
 					out = connections.size() * rndUniform(rndGen);
 					i = 0;
 				}
 			}
 			float weight = rndNormal(rndGen);
-			printf("Adding connection: in=%d, out=%d (weight=%f)\n", in, out, weight);
+			//printf("Adding connection: in=%d, out=%d (weight=%f)\n", in, out, weight);
 			// Add new connection (with random weight) to list
 			connections.push_back( Connection(in, out, weight, true) );
 		}
@@ -110,9 +113,9 @@ private:
 		nodes.push_back(Node(Hidden)); // Add new node to list
 		int iNewNode = nodes.size()-1; // Get new node's index
 
-		printf("Adding new node (#%d), between #%d and #%d, in place of connection #%d\n",
-			iNewNode, connections[iRndCon].in, connections[iRndCon].out, iRndCon
-		);
+		//printf("Adding new node (#%d), between #%d and #%d, in place of connection #%d\n",
+		//	iNewNode, connections[iRndCon].in, connections[iRndCon].out, iRndCon
+		//);
 
 		// Connect new node between previously connected nodes
 		connections.push_back(Connection(
@@ -131,17 +134,26 @@ private:
 
 	// Propagate values through network one step
 	void computeOneCycle(){
-		for(Connection c : connections) {
-			if(c.expressed) {
-				nodes[c.out].preVal += nodes[c.in].postVal * c.weight;
+		printf("3.a, ");
+		for(int i=0; i<connections.size(); i++) {
+			if(connections[i].expressed) {
+				nodes[connections[i].out].preVal += 
+					nodes[connections[i].in].postVal * 
+					connections[i].weight;
 			/*	printf("\nn[%i].preval += n[%i].postVal * weight\n(%.2f += %.2f * %.2f) = %.2f\n",
-					c.out, c.in,
-					(nodes[c.out].preVal - nodes[c.in].postVal * c.weight),
-					nodes[c.in].postVal, c.weight, nodes[c.out].preVal
-				);
-			*/
+					connections[i].out,
+					connections[i].in,
+					(nodes[connections[i].out].preVal - 
+						nodes[connections[i].in].postVal *
+						connections[i].weight
+					),
+					nodes[connections[i].in].postVal,
+					connections[i].weight,
+					nodes[connections[i].out].preVal
+				);*/
 			}
 		}
+		printf("3.b, ");
 		for(int i=0; i<nodes.size(); i++) {
 			nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
 		/*	if(nodes[i].type == Output) printf("output:");
@@ -152,8 +164,12 @@ private:
 	}
 
 public:
+	// Default constructor, needed to initialize array
+	Genome() {initialized = false;}
+	
 	// Create genome, specifying number of input and output nodes
 	Genome(int nIn, int nOut) {
+		initialized = true;
 		uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 
@@ -180,9 +196,13 @@ public:
 	// Input data into the network and get output
 	vector<float> getOutput(vector<float> input) {
 		// Clear previous values
+		printf(initialized ? "(Initialized)\t" : "(Not initialized)\t");
+		
+		printf("1,");
 		for(Node n : nodes) {
 			n.preVal = n.postVal = 0.0f;
 		}
+		printf("2,");
 
 		// Set input (assuming they are located first in the array)
 		for(int i=0; i<input.size(); i++) {
@@ -193,20 +213,20 @@ public:
 				printGenome();
 			}
 		}
-
+		printf("3,");
 		for(int i=0; i<nActivationCycles; i++) {
 			computeOneCycle();
 		}
-
+		printf("4,");
 		vector<float> output;
-
+		printf("5,");
 		for(Node n : nodes) {
 			if(n.type == Output){
 				//TODO: should we use activationFunction here?
 				output.push_back(n.activationFunction(n.postVal));
 			}
 		}
-
+		printf("6\n");
 		return output;
 	}
 
