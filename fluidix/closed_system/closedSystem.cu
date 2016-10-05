@@ -262,11 +262,35 @@ void initializeOffspring(Fluidix<> *fx, Particle *cell, Global &g) {
 	Organism o = Organism(g.organisms[cell->organism]);
 	o.linkSet = fx->createLinkSet();
 	o.genome.mutate();
-	o.genome.printMathematica();
+	//o.genome.printMathematica();
 	g.organisms.push_back(o);
 	cell->organism 	= g.organisms.size()-1;
 	cell->origin		= cell;
 	cell->reproduce	= false;
+	printf("New species! index: %i\n", cell->organism);
+
+	// Define number of in- and outputs
+	int inputs = 4; 						// X, Y, Z, Dist
+
+	vector<float> input(inputs, 0.0f); //Input origin
+	vector<float> output = o.genome.getOutput(input);
+
+	float max = output[0]; cell->type = (CellType) 0;
+	for(int j=1; j<N_CELL_TYPES; j++) {
+		if(output[j] > max) {
+			max = output[j];
+			cell->type = (CellType) j;
+		}
+	}
+	switch(cell->type) {
+		case Photo:		cell->color = 0.5f; break; // Green
+		case Pred:		cell->color = 1.0f; break; // Red
+		case Move:		cell->color = 0.7f; break; // Yellow
+		case Sense:		cell->color = 0.0f; break; // Blue
+		case Ballast:	cell->color = 0.3f; break; // Cyan
+		case Sex:			cell->color = 0.8f; break; // Orange?
+	}
+	cell->growthProb = output[N_CELL_TYPES];
 }
 
 void growCell(Fluidix<> *fx, Particle *parent, Particle *child) {
@@ -341,13 +365,14 @@ int main() {
 		fx->runEach(boundary(), setA);
 		fx->runEach(integrate(), setA);
 		fx->runEach(age(), setA);
+		fx->runEach(reproduce(), setA);
 		
 		// Grow cells that shold do that
 		for(int i=0; i<N; i++) {
 			if(p[i].toGrow != -1) {
 				int parent = i;
 				int child = p[i].toGrow;
-				printf("toGrow! parent: %i, child: %i\n", parent, child);
+				//printf("toGrow! parent: %i, child: %i\n", parent, child);
 				growCell(fx, &p[parent], &p[child]);
 				//fx->addLink(
 				//	g.organisms[p[i].organism].linkSet,
@@ -356,8 +381,12 @@ int main() {
 				p[i].toGrow = -1;
 				fx->applyParticleArray(setA);
 			}
+			// Create offspring:
 			else if(p[i].reproduce)
 				initializeOffspring(fx, &p[i], g);
+			// Remove dead organisms:
+			//else if(p[i].origin == &p[i] && p[i].particleType !== Cell)
+			//	g.organisms.erase(p[i].organism);
 		}
 
 		if (step % 10 == 0) {
