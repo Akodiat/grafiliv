@@ -81,18 +81,23 @@ private:
 
 		// If there are connection left to add
 		if (connections.size() < nodes.size()*nodes.size()) {
-			int in  = rndUniform(rndGen) * (nodes.size()-nOutputs);
-			int out = rndUniform(rndGen) * (nodes.size()-nInputs);
+			int in  = rndUniform(rndGen) * (nodes.size() - nOutputs);
+			int out = rndUniform(rndGen) * (nodes.size() - nInputs);
 
-			if(nodes[in].type == Output) in+=nOutputs;
-			if(nodes[out].type == Input) out+=nInputs;
+			if(nodes[in].type == Output) in  += nOutputs;
+			if(nodes[out].type == Input) out += nInputs;
+
+            int timeoutTries = nodes.size() * nodes.size();
 
 			// Make sure the connection doesn't already exist
 			for(int i=0; i<connections.size(); i++) {
 				if(connections[i].in == in && connections[i].out == out) {
-					//printf("in=%d, out=%d already exists, trying another connection\n", in, out);
-					in  = connections.size() * rndUniform(rndGen);
-					out = connections.size() * rndUniform(rndGen);
+                    if (!timeoutTries--) return; // For n nodes, give up after n^2 tries
+
+                    int in = rndUniform(rndGen) * (nodes.size() - nOutputs);
+                    int out = rndUniform(rndGen) * (nodes.size() - nInputs);
+                    if(nodes[in].type == Output) in += nOutputs;
+                    if(nodes[out].type == Input) out += nInputs;
 					i = 0;
 				}
 			}
@@ -165,11 +170,10 @@ private:
 
 public:
 	// Default constructor, needed to initialize array
-	Genome() {initialized = false;}
+	Genome() {}
 	
 	// Create genome, specifying number of input and output nodes
 	Genome(int nIn, int nOut) {
-		initialized = true;
 		uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 
@@ -196,13 +200,9 @@ public:
 	// Input data into the network and get output
 	vector<float> getOutput(vector<float> input) {
 		// Clear previous values
-		printf(initialized ? "(Initialized)\t" : "(Not initialized)\t");
-		
-		printf("1,");
-		for(Node n : nodes) {
-			n.preVal = n.postVal = 0.0f;
+		for(int i=0; i<nodes.size(); i++) {
+			nodes[i].preVal = nodes[i].postVal = 0.0f;
 		}
-		printf("2,");
 
 		// Set input (assuming they are located first in the array)
 		for(int i=0; i<input.size(); i++) {
@@ -213,20 +213,16 @@ public:
 				printGenome();
 			}
 		}
-		printf("3,");
 		for(int i=0; i<nActivationCycles; i++) {
 			computeOneCycle();
 		}
-		printf("4,");
 		vector<float> output;
-		printf("5,");
-		for(Node n : nodes) {
-			if(n.type == Output){
+		for(int i=0; i<nodes.size(); i++) {
+			if(nodes[i].type == Output){
 				//TODO: should we use activationFunction here?
-				output.push_back(n.activationFunction(n.postVal));
+				output.push_back(nodes[i].activationFunction(nodes[i].postVal));
 			}
 		}
-		printf("6\n");
 		return output;
 	}
 
@@ -264,6 +260,7 @@ public:
 		string vertices = "";
 		string links = "";
 		string vertexStyle = "";
+		string edgeWeights = "";
 		for(int i=0; i<nodes.size(); i++) {
 			vertices += to_string(i) +
 				(i==nodes.size()-1 ? "" : ", ");
@@ -277,8 +274,13 @@ public:
 				to_string(connections[i].in)  + "->" +
 				to_string(connections[i].out) +
 				(i==connections.size()-1 ? "" : ", ");
+			edgeWeights += to_string(connections[i].weight) +
+				(i==connections.size()-1 ? "" : ", ");
 		}
-		cout<< "Graph[{"<<vertices<<"},{"<<links<<"}, VertexStyle->{"<<vertexStyle<<"}, VertexLabels->\"Name\"]"<<endl;
+		cout<< "Graph[{"<<vertices<<"},{"<<links<<"}, "<<
+			"VertexStyle->{"<<vertexStyle<<"}, "<<
+			"EdgeWeight->{"<<edgeWeights<<"}, "<<
+			"VertexLabels->\"Name\"]"<<endl;
 	}
 };
 

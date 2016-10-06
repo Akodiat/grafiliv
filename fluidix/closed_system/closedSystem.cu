@@ -1,5 +1,5 @@
-#include "fluidix.h"
-//#include "C:\Program Files (x86)\Fluidix\include\fluidix.h"
+//#include "fluidix.h"
+#include "C:\Program Files (x86)\Fluidix\include\fluidix.h"
 //#include "C:\Users\admin\Documents\Joakim\repo\grafiliv\fluidix\lib\genome.h"
 #include "../lib/genome.h"
 
@@ -290,6 +290,7 @@ void initializeOffspring(Particle *cell) {
 	cell->origin		= cell;
 	cell->reproduce	= false;
 	printf("New species! index: %i\n", cell->organism);
+	cell->genome.printMathematica();
 
 	// Define number of in- and outputs
 	int inputs = N_INPUTS; 						// X, Y, Z, Dist
@@ -360,27 +361,23 @@ int main() {
 
 		for(int i=0; i<N; i++) {
 			if(p[i].particleType == Cell) {
-				if(p[i].toGrow != -1) {
+				if(p[i].toGrow != -1 &&
+					p[i].origin != NULL &&
+					p[i].origin->particleType == Cell &&
+					p[i].origin->organism == p[i].organism
+				) {
 					int parent = i;
 					int child = p[i].toGrow;
-					//printf("toGrow! parent: %i, child: %i\n", parent, child);
 					growCell(&p[parent], &p[child]);
-					//fx->addLink(
-					//	g.organisms[p[i].organism].linkSet,
-					//	setA, parent, setA, child
-					//);
 					p[i].toGrow = -1;
 					fx->applyParticleArray(setA);
 				}
 				// Create offspring:
-				else if(p[i].type == Sex && p[i].reproduce) {
+				if(p[i].type == Sex && p[i].reproduce) {
 					initializeOffspring(&p[i]);
 					fx->applyParticleArray(setA);
 				}
 			}
-			// Remove dead organisms:
-			//else if(p[i].origin == &p[i])
-			//	g.organisms.erase(p[i].organism);
 		}
 
 		if (step % 10 == 0) {
