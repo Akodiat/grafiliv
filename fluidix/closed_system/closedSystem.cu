@@ -4,11 +4,8 @@
 #include "../lib/genome.h"
 
 #define DT 0.01f // integration time-step
-#define CELL_LIFETIME 50.0f
-#define PELLET_LIFETIME 50.0f
-
-#define BOX_MAX 20
-#define BOX_MIN 1
+#define CELL_LIFETIME 20.0f
+#define PELLET_LIFETIME 100.0f
 
 #define W 200
 #define N 30000
@@ -19,7 +16,7 @@
 #define N_INPUTS 4
 
 #define RANGE 3.0f
-#define MOVE_FACTOR 200
+#define MOVE_FACTOR 100
 
 #define REPULSION_FORCE 150
 #define ATTRACTION_FORCE 250
@@ -41,13 +38,6 @@ enum CellType {Photo, Pred, Sense, Move, Ballast, Sex,
 };
 enum ParticleType {Cell, Energy, Pellet,
 	N_PARTICLE_TYPES
-};
-
-struct Organism {
-	Genome genome;
-	int linkSet;
-	Organism() {}
-	Organism(Genome g): genome(g), linkSet(-1) {}
 };
 
 int currGenomeIndex;
@@ -268,10 +258,8 @@ void initializeNewOrganism(Particle *cell) {
 
 	cell->genome = Genome(inputs, outputs);
 	cell->genome.mutate();
-	//cell->genome.printMathematica();
 
 	cell->organism	= currGenomeIndex++;
-	printf("First batch of species! index: %i\n", cell->organism);
 	cell->r			= make_xyz_uniform() * W;
 	cell->origin		= cell;
 	cell->reproduce	= false;
@@ -280,7 +268,7 @@ void initializeNewOrganism(Particle *cell) {
 	vector<float> input(inputs, 0.0f); //Input origin
 	vector<float> output = cell->genome.getOutput(input);
 
-   applyPhenotype(output, cell);
+	applyPhenotype(output, cell);
 }
 
 // Initialize organism, inheriting from parent
@@ -289,8 +277,6 @@ void initializeOffspring(Particle *cell) {
 	cell->organism = currGenomeIndex++;
 	cell->origin		= cell;
 	cell->reproduce	= false;
-	printf("New species! index: %i\n", cell->organism);
-	cell->genome.printMathematica();
 
 	// Define number of in- and outputs
 	int inputs = N_INPUTS; 						// X, Y, Z, Dist
@@ -298,7 +284,7 @@ void initializeOffspring(Particle *cell) {
 	vector<float> input(inputs, 0.0f); //Input origin
 	vector<float> output = cell->genome.getOutput(input);
 
-   applyPhenotype(output, cell);
+	applyPhenotype(output, cell);
 }
 
 void growCell(Particle *parent, Particle *child) {
@@ -327,20 +313,20 @@ void growCell(Particle *parent, Particle *child) {
 	input.push_back(dr.z);
 	input.push_back(xyz_len(dr));
 
+	//child->genome.mutate();
+
 	vector<float> output = child->genome.getOutput(input);
 
 	//printf("input: ");  for(float i : input)  printf("%.2f ",i); printf("\t");
 	//printf("output: "); for(float o : output) printf("%.2f ",o); printf("\n");
 
-   applyPhenotype(output, child);
+	applyPhenotype(output, child);
 }
 
 int main() {
 	Fluidix<> *fx = new Fluidix<>(&g);
 	int setA = fx->createParticleSet(N);
-	//fx->createGlobalArray(&g.toGrow, N * sizeof(int));
-	//for(int i=0; i<N; i++)
-	//	g.toGrow[i] = -1;
+
 	currGenomeIndex = 0;
 
 	fx->runEach(init(), setA);
@@ -385,7 +371,6 @@ int main() {
 			fx->outputFrame("output");
 		}
 	}
-	//createCells(fx, make_xyz(0, 0, 0), L, setA);
 
 	delete fx;
 }

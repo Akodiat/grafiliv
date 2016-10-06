@@ -1,7 +1,7 @@
 #ifndef GENOME_H
 #define GENOME_H
 
-#define MUTATION_PROB 0.7f
+#define MUTATION_PROB 0.1f
 
 #include <random>
 #include <time.h>
@@ -102,7 +102,7 @@ private:
 				}
 			}
 			float weight = rndNormal(rndGen);
-			//printf("Adding connection: in=%d, out=%d (weight=%f)\n", in, out, weight);
+
 			// Add new connection (with random weight) to list
 			connections.push_back( Connection(in, out, weight, true) );
 		}
@@ -117,10 +117,6 @@ private:
 
 		nodes.push_back(Node(Hidden)); // Add new node to list
 		int iNewNode = nodes.size()-1; // Get new node's index
-
-		//printf("Adding new node (#%d), between #%d and #%d, in place of connection #%d\n",
-		//	iNewNode, connections[iRndCon].in, connections[iRndCon].out, iRndCon
-		//);
 
 		// Connect new node between previously connected nodes
 		connections.push_back(Connection(
@@ -139,33 +135,17 @@ private:
 
 	// Propagate values through network one step
 	void computeOneCycle(){
-		printf("3.a, ");
 		for(int i=0; i<connections.size(); i++) {
 			if(connections[i].expressed) {
 				nodes[connections[i].out].preVal += 
 					nodes[connections[i].in].postVal * 
 					connections[i].weight;
-			/*	printf("\nn[%i].preval += n[%i].postVal * weight\n(%.2f += %.2f * %.2f) = %.2f\n",
-					connections[i].out,
-					connections[i].in,
-					(nodes[connections[i].out].preVal - 
-						nodes[connections[i].in].postVal *
-						connections[i].weight
-					),
-					nodes[connections[i].in].postVal,
-					connections[i].weight,
-					nodes[connections[i].out].preVal
-				);*/
 			}
 		}
-		printf("3.b, ");
 		for(int i=0; i<nodes.size(); i++) {
 			nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
-		/*	if(nodes[i].type == Output) printf("output:");
-			printf("( %.2f %.2f )\t", nodes[i].preVal, nodes[i].postVal);
-		*/	nodes[i].preVal = 0.0f; // TODO: why?
+            nodes[i].preVal = 0.0f; // TODO: why?
 		}
-		//printf("\n");
 	}
 
 public:
@@ -209,7 +189,7 @@ public:
 			if(nodes[i].type == Input)
 				nodes[i].postVal = input[i];
 			else {
-				printf( "Node %d is not input, has type %i", i, nodes[i].type);
+				printf("Node %d is not input, has type %i", i, nodes[i].type);
 				printGenome();
 			}
 		}
