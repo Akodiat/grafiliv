@@ -1,7 +1,7 @@
 #ifndef GENOME_H
 #define GENOME_H
 
-#define MUTATION_PROB 0.1f
+#define MUTATION_PROB 0.01f
 
 #include <random>
 #include <time.h>
@@ -34,7 +34,7 @@ class Genome {
 				case Sine:	return sin(x);
 				case Abs : 	return clamp(1.0f - abs(x), -1, 1);
 				case Gaus:  return exp(-(x*x)/2);
-				case Id  :	return x;
+				case Id  :	return clamp(x,-1,1);
 				case Mod :	return fmod(x, 1);
 				default  :
 					printf("Activation function (%d) not set", f);
@@ -64,7 +64,7 @@ private:
 	bool initialized;
 
 	// Number of times to propagate values
-	int nActivationCycles = 1;
+	int nActivationCycles = 10;
 
 	// Mutate each connection with small pertubation
 	void mutateConnections() {
