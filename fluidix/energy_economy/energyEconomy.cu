@@ -2,6 +2,8 @@
 #include "C:\Program Files (x86)\Fluidix\include\fluidix.h"
 #include "../lib/genome.h"
 #include <queue>
+#include <ppl.h>
+#include <concurrent_queue.h>
 
 #define DT 0.01f // integration time-step
 #define CELL_INITIAL_ENERGY 100.0f
@@ -10,26 +12,26 @@
 #define W 300
 #define N 100000
 #define N_ORIGIN_CELLS 2000
-#define N_INITIAL_BUFFER 1000
+#define N_INITIAL_BUFFER 100
 #define N_STEPS 1000000
 
 //Inputs x,y,z,d:
 #define N_INPUTS 4
 
 #define RANGE 3.0f
-#define MOVE_FACTOR 100
+#define MOVE_FACTOR 50
 
 #define REPULSION_FORCE 150
 #define ATTRACTION_FORCE 250
 
 #define CELL_MIN_ENERGY 0.5f
 #define PELLET_MIN_ENERGY 0.01f
-#define DIVISION_ENERGY (CELL_MIN_ENERGY * 8.0f)
-#define ENERGY_PARTICLE_ENERGY 10.0f
-#define MAX_CELL_DIVISIONS 10
+#define DIVISION_ENERGY (CELL_MIN_ENERGY * 4.0f)
+#define ENERGY_PARTICLE_ENERGY 1.0f
+#define MAX_CELL_DIVISIONS 5
 
 #define CELL_METABOLISM 0.5f
-#define CELL_DECAY_RATE 0.1f
+#define CELL_DECAY_RATE 0.5f
 
 #define FLUID_DENSITY 1.0f
 #define G -9.81f
@@ -42,15 +44,18 @@
 #define ORANGE  0.8f
 
 #define transmitFloat(a, b, f) {addFloat(a, -f); addFloat(b, f);}
+#define isWeirdParticle(p) (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z)
+#define isWeirdParticlePointer(p) (p->r.x != p->r.x || p->r.y != p->r.y || p->r.z != p->r.z)
 
 using namespace std;
+using namespace concurrency;
 
 enum CellType {
     Photo, Digest, Sting, Vascular, Fat, Sense, Motor, Ballast, Egg, 
     N_CELL_TYPES
 };
 enum ParticleType {
-    Cell, Energy, Pellet, Buffert,
+    Cell, Energy, Pellet, Buffer,
     N_PARTICLE_TYPES
 };
 
@@ -69,15 +74,17 @@ struct Particle {
     float alpha;
     float density;
     float energy;
-    float energySharing;
+    float energyIn;
+    float energyOut;
     float maxEnergy;
     int nDivisions;
     float signal;
     int organism;
     bool toGrow;
-    bool reproduce;
-    Genome genome;
+    bool toBuffer;
+    bool toReproduce;
     Particle *origin;
+    Particle *parent;
     CellType type;
 };
 
@@ -86,7 +93,7 @@ struct Particle {
     p.energy = PELLET_LIFETIME;     \
     p.density = FLUID_DENSITY * 2;  \
     p.alpha = 0.5f;                 \
-    p.organism = NULL;              \
+    p.organism = -1;                \
 }                                   \
 
 #define turnIntoEnergy(p) {         \
@@ -103,8 +110,8 @@ struct Particle {
     p.density = FLUID_DENSITY * 20; \
 }
 
-#define turnIntoBuffert(p) {        \
-    p.particleType = Buffert;       \
+#define turnIntoBuffer(p) {        \
+    p.particleType = Buffer;       \
     p.r = make_xyz(                 \
         rnd_uniform()*W,            \
         rnd_uniform()*W - W,        \
@@ -114,24 +121,11 @@ struct Particle {
     p.alpha = 0.5f;                 \
     p.color = 0.5f;                 \
     p.radius = 1.0f;                \
-    p.organism = NULL;              \
+    p.organism = -1;                \
 }
 
 FUNC_EACH(init,
     turnIntoEnergy(p);
-    //p.r = (make_xyz_uniform() * W) + make_xyz(0, W, 0);
-    //p.color = 0.7f;
-    //p.alpha = 0.3f;
-    //p.radius = 0.5f;
-    //p.density = FLUID_DENSITY * 10;
-    //p.particleType = Energy;
-    //p.toGrow = false;
-    //p.growthProb = -1.0f;
-    //p.energy = ENERGY_PARTICLE_ENERGY;
-    //p.signal = 0.0f;
-    //p.organism = -1;
-    //p.reproduce = false;
-    //p.origin = NULL;
 )
 
 FUNC_EACH(integrate,
@@ -153,7 +147,7 @@ FUNC_EACH(handleEnergy,
     case Pellet:
         p.energy -= CELL_DECAY_RATE * DT;
         if (p.energy <= PELLET_MIN_ENERGY)
-            turnIntoBuffert(p)
+            p.toBuffer = true;
         break;
     }
     //p.color = mapf(p.energy, 0.0f, 10.0f, 0.0f, 1.0f);
@@ -175,18 +169,19 @@ FUNC_EACH(moveParticle,
 
 FUNC_EACH(reproduction,
     if (p.particleType == Cell && p.type == Egg) {
-        if (rnd_uniform() < p.signal)
-            p.reproduce = true;
+        if (p.energy >= p.maxEnergy) //rnd_uniform() < p.signal)
+            p.toReproduce = true;
     }
 )
 
 // bouncing hard wall boundary condition
 FUNC_EACH(boundary,
     // Check for wierd 1.#R values... NaN?
-    if (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z) {
-        printf("Weird particle!!! type (%i:%i)\n", p.particleType, p.type);
-        turnIntoBuffert(p);
-    } if (p.particleType != Buffert) {
+    if (isWeirdParticle(p)) {
+        //printf("Weird particle!!! type (%i:%i)\n", p.particleType, p.type);
+        turnIntoBuffer(p);
+        p.toBuffer = true;
+    } if (p.particleType != Buffer) {
         if (p.r.x < 0) { p.v.x = 0.9f * (0 - p.r.x) / DT; p.r.x = 0; }
         if (p.r.x > W) { p.v.x = 0.9f * (W - p.r.x) / DT; p.r.x = W; }
         if (p.r.z < 0) { p.v.z = 0.9f * (0 - p.r.z) / DT; p.r.z = 0; }
@@ -194,7 +189,7 @@ FUNC_EACH(boundary,
 
         if (p.particleType == Energy){
             if (p.r.y < 0) {
-                turnIntoBuffert(p);
+                p.toBuffer = true;
             }
         }
         else {
@@ -210,19 +205,30 @@ FUNC_EACH(growth,
 
     if (p.particleType == Cell && p.energy > DIVISION_ENERGY && p.nDivisions--) //rnd_uniform() < p.growthProb)
         p.toGrow = true;
-    )
+)
+
+#define SPRING_K 100.0f // spring constant
+FUNC_EACH(springToParent,
+    if (p.particleType == Cell && p.parent != nullptr &&
+        p.parent->particleType == Cell &&
+        !isWeirdParticlePointer(p.parent)
+        ) {
+        printf("parent.r=(%.2f, %.2f, %.2f)\n", p.parent->r.x, p.parent->r.y, p.parent->r.z);
+        xyz u = (p.r - p.parent->r);
+        float dr = xyz_len(u);
+        xyz f = u * ((dr - (p.radius + p.parent->radius)) * SPRING_K);
+        addVector(p.f, f);
+        //addVector(p.parent->f, -f);
+    }
+)
 
 #define consumeParticle(a, b) {     \
-    addFloat(a.energy, b.energy);   \
-    turnIntoBuffert(b);             \
+    addFloat(a.energy, b.energy * 0.9f);   \
+    b.toBuffer = true;             \
 }
 
-
-//float temp = a.energy;  \
-//printf("Particle (type %i-%i) consumes another, energy increases from %.2f to %.2f\n", a.particleType, a.type, temp, a.energy); \
-
 FUNC_PAIR(particlePair,
-    if (p1.particleType != Buffert && p2.particleType != Buffert) {
+    if (p1.particleType != Buffer && p2.particleType != Buffer) {
         float ratio = (dr - p1.radius - p2.radius) / (range - p1.radius - p2.radius);
         //float ratio = dr/range;
 
@@ -242,14 +248,14 @@ FUNC_PAIR(particlePair,
                 //Energy transmission
                 float p1Surplus = maxf(p1.energy - CELL_MIN_ENERGY, 0);
                 float p2Surplus = maxf(p2.energy - CELL_MIN_ENERGY, 0);
-                transmitFloat(p1.energy, p2.energy, p1Surplus * p1.energySharing);
-                transmitFloat(p2.energy, p1.energy, p2Surplus * p2.energySharing);
+                transmitFloat(p1.energy, p2.energy, p1Surplus * p1.energyOut * p2.energyIn);
+                transmitFloat(p2.energy, p1.energy, p2Surplus * p2.energyOut * p2.energyIn);
             }
             //Cells from different organisms
             else {
-                //Damage the other cell if you are sting
-                if (p1.type == Sting) p2.energy -= 0.1;
-                if (p2.type == Sting) p1.energy -= 0.1;
+                //Kill the other cell if you are sting
+                if (p1.type == Sting) turnIntoPellet(p2);
+                if (p2.type == Sting) turnIntoPellet(p2);
             }
         }
         //If p1 is a cell
@@ -282,7 +288,7 @@ void setDefaultCellValues(Particle *cell) {
     cell->alpha = 1.0f;
     cell->radius = 1.0f;
     cell->energy = CELL_INITIAL_ENERGY;
-    cell->density = FLUID_DENSITY;
+    cell->density = FLUID_DENSITY * 1.1f;
     cell->particleType = Cell;
 }
 
@@ -297,55 +303,80 @@ void applyPhenotype(vector<float> output, Particle *cell) {
     switch (cell->type) {
     case Photo:
         cell->color = GREEN;
-        cell->energySharing = 0.8f;
-        cell->maxEnergy = 5.0f;
+        cell->energyIn = 0.0f;
+        cell->energyOut = 0.9f;
+        cell->maxEnergy = 3.0f;
         break;
     case Digest:
         cell->color = RED;
-        cell->energySharing = 0.8f;
-        cell->maxEnergy = 5.0f;
+        cell->energyIn = 0.0f;
+        cell->energyOut = 0.9f;
+        cell->maxEnergy = 3.0f;
         break;
     case Fat:
-        cell->color = 0.4f;
-        cell->energySharing = 0.1f;
-        cell->maxEnergy = 20.0f;
+        cell->color = YELLOW;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.01f;
+        cell->maxEnergy = 10.0f;
         break;
     case Motor:
-        cell->color = YELLOW;
-        cell->energySharing = 0.0f;
-        cell->maxEnergy = 5.0f;
+        cell->color = 0.4f;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
         break;
     case Sense:
         cell->color = BLUE;
-        cell->energySharing = 0.5f;
-        cell->maxEnergy = 5.0f;
+        cell->energyIn = 0.5f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
         break;
     case Ballast:
         cell->color = CYAN;
-        cell->energySharing = 0.0f;
-        cell->maxEnergy = 5.0f;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
         break;
     case Egg:
         cell->color = ORANGE;
-        cell->energySharing = 0.0f;
-        cell->maxEnergy = 10.0f;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = DIVISION_ENERGY;
+        break;
+    case Vascular:
+        cell->color = 0.2;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.9f;
+        cell->maxEnergy = 1.0f;
+        break;
+    case Sting:
+        cell->color = 0.85f;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
         break;
     default:
-        cell->energySharing = 0.5f;
-        cell->maxEnergy = 5.0f;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
+    }
+    if (cell->origin == cell) {
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
     }
     cell->nDivisions = output[N_CELL_TYPES] * MAX_CELL_DIVISIONS;
 }
 
 // Initialize new organism, not inheriting anything
-void initializeNewOrganism(Particle *cell) {
+void initializeNewOrganism(Particle *cell, Genome *genome) {
     // Define number of in- and outputs
     int inputs = N_INPUTS;              // X, Y, Z, Dist
     int nonCelltypeOutputs = 1;         // Growth prob
     int outputs = N_CELL_TYPES + nonCelltypeOutputs;
 
-    cell->genome = Genome(inputs, outputs);
-    cell->genome.mutate();
+    *genome = Genome(inputs, outputs);
+    genome->mutate();
 
     cell->organism = currGenomeIndex++;
     cell->r = make_xyz(
@@ -354,32 +385,34 @@ void initializeNewOrganism(Particle *cell) {
         rnd_uniform() * W
         );
     cell->origin = cell;
-    cell->reproduce = false;
+    cell->parent = nullptr;
+    cell->toReproduce = false;
     setDefaultCellValues(cell);
 
     vector<float> input(inputs, 0.0f); //Input origin
-    vector<float> output = cell->genome.getOutput(input);
+    vector<float> output = genome->getOutput(input);
 
     applyPhenotype(output, cell);
 }
 
 // Initialize organism, inheriting from parent
-void initializeOffspring(Particle *cell) {
-    cell->genome.mutate();
+void initializeOffspring(Particle *cell, Genome *genome) {
+    genome->mutate();
     cell->organism = currGenomeIndex++;
     cell->origin = cell;
-    cell->reproduce = false;
+    cell->parent = nullptr;
+    cell->toReproduce = false;
 
     // Define number of in- and outputs
-    int inputs = N_INPUTS;                      // X, Y, Z, Dist
+    int inputs = N_INPUTS; // X, Y, Z, Dist
 
     vector<float> input(inputs, 0.0f); //Input origin
-    vector<float> output = cell->genome.getOutput(input);
+    vector<float> output = genome->getOutput(input);
 
     applyPhenotype(output, cell);
 }
 
-void growCell(Particle *parent, Particle *child) {
+void growCell(Particle *parent, Particle *child, Genome *genomeParent, Genome *genomeChild) {
     normal_distribution<float> rndNormal(0.0f, 1.0f);
     
     //Half of parent's energy goes to the child
@@ -387,6 +420,7 @@ void growCell(Particle *parent, Particle *child) {
 
     //  Copy constructor
     *child = Particle(*parent);
+    *genomeChild = Genome(*genomeParent);
 
     // Displace particles from each other
     xyz displacement = xyz_norm(
@@ -399,6 +433,8 @@ void growCell(Particle *parent, Particle *child) {
     parent->r -= displacement;
     child->r += displacement;
 
+    child->parent = parent;
+
     xyz dr = child->r - child->origin->r;
 
     vector<float> input;
@@ -407,9 +443,9 @@ void growCell(Particle *parent, Particle *child) {
     input.push_back(dr.z);
     input.push_back(xyz_len(dr));
 
-    child->genome.mutate();
+    genomeChild->mutate();
 
-    vector<float> output = child->genome.getOutput(input);
+    vector<float> output = genomeChild->getOutput(input);
 
     //printf("input: ");  for(float i : input)  printf("%.2f ",i); printf("\t");
     //printf("output: "); for(float o : output) printf("%.2f ",o); printf("\n");
@@ -417,73 +453,86 @@ void growCell(Particle *parent, Particle *child) {
     applyPhenotype(output, child);
 }
 
+#define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
+
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int setA = fx->createParticleSet(N);
 
     currGenomeIndex = 0;
     g.nCells = 0;
+    Genome *genomes = new Genome[N];
 
     fx->runEach(init(), setA);
 
     Particle *p = fx->getParticleArray(setA);
     for (int i = 0; i < N_ORIGIN_CELLS; i++)
-        initializeNewOrganism(&p[i]);
-    
-    queue<Particle*> particleBuffert;
+        initializeNewOrganism(&p[i], &genomes[i]);
+
+    concurrent_queue<int> particleBuffer;
+
     for (int i = N_ORIGIN_CELLS; i < N_ORIGIN_CELLS + N_INITIAL_BUFFER; i++) {
-        turnIntoBuffert(p[i]);
+        turnIntoBuffer(p[i]);
         p[i].r.y -= W;
-        particleBuffert.push(&p[i]);
+        particleBuffer.push(i);
     }
     fx->applyParticleArray(setA);
 
     for (int step = 0; step < N_STEPS; step++) {
         g.nCells = 0;
+//      fx->runEach(springToParent(), setA);
         fx->runEach(boundary(), setA);
         fx->runPair(particlePair(), setA, setA, RANGE);
         fx->runEach(moveParticle(), setA);
         fx->runEach(buoyancy(), setA);
-        fx->runEach(integrate(), setA);
         fx->runEach(handleEnergy(), setA);
         fx->runEach(growth(), setA);
-        for (int i = 0; i < N; i++) {
-            if (p[i].particleType == Buffert) {
-                if (particleBuffert.size() > N_INITIAL_BUFFER) {
+        fx->runEach(integrate(), setA);
+        parallel_for (int(0), N, [&](int i)
+        {
+            if (p[i].toBuffer) {
+                if (particleBuffer.unsafe_size() > N_INITIAL_BUFFER) {
                     turnIntoEnergy(p[i]);
                     fx->applyParticleArray(setA);
                 } else {
-                    particleBuffert.push(&p[i]);
+                    turnIntoBuffer(p[i]);
+                    particleBuffer.push(i);
                 }
+                p[i].toBuffer = false;
             }
             if (p[i].particleType == Cell) {
                 if (p[i].toGrow &&
-                    p[i].origin != NULL &&
+                    p[i].origin != nullptr &&
                     p[i].origin->particleType == Cell &&
                     p[i].origin->organism == p[i].organism &&
-                    !particleBuffert.empty()
+                    !particleBuffer.empty()
                     ) {
-                        Particle *parent = &p[i];
-                        Particle *child  = particleBuffert.front();
-                        particleBuffert.pop();
-                        p[i].toGrow = false;
-                        growCell(parent, child);
-                        fx->applyParticleArray(setA);
+                        int parent = i;
+                        int child;
+                        if (particleBuffer.try_pop(child)) {
+                            p[i].toGrow = false;
+                            growCell(&p[parent], &p[child], &genomes[parent], &genomes[child]);
+                            fx->applyParticleArray(setA);
+                        }
                 }
                 // Create offspring:
-                if (p[i].type == Egg && p[i].reproduce) {
-                    initializeOffspring(&p[i]);
+                if (p[i].type == Egg && p[i].toReproduce) {
+                    initializeOffspring(&p[i], &genomes[i]);
                     fx->applyParticleArray(setA);
                 }
             }
-        }
+        });
 
         if (step % 10 == 0) {
             printf("nCells: %i\t", g.nCells);
             printf("step %d\n", step);
             fx->outputFrame("output");
         }
-    }
 
+        if (!g.nCells) break;
+    }
+    delete[] genomes;
     delete fx;
+
+    //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }
