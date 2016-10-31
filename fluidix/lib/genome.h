@@ -56,6 +56,7 @@ class Genome {
 private:
 	vector<Connection>	connections;
 	vector<Node> 		nodes;
+    int3                gridDim;
 	static int currInnovNumber;
 
 	int nInputs;
@@ -68,10 +69,11 @@ private:
 
 	// Mutate each connection with small pertubation
 	void mutateConnections() {
+        uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 		for(int i=0; i<connections.size(); i++)
-			if(rndNormal(rndGen) < MUTATION_PROB)
-				connections[i].weight *= rnd_normal();
+            if (rndUniform(rndGen) < MUTATION_PROB)
+                connections[i].weight *= rndNormal(rndGen);
 	}
 
 	// Mutate structure by adding connection
@@ -110,28 +112,46 @@ private:
 
 	// Mutate structure by adding node
 	void mutateAddNode() {
-		// Select and disable random connection
-		uniform_int_distribution<int> rndInt(0, connections.size()-1);
-		int iRndCon = rndInt(rndGen);
-		connections[iRndCon].expressed = false;
+        if (connections.size() > 0) {
+            // Select and disable random connection
+            uniform_int_distribution<int> rndInt(0, connections.size() - 1);
+            int iRndCon = rndInt(rndGen);
+            connections[iRndCon].expressed = false;
 
-		nodes.push_back(Node(Hidden)); // Add new node to list
-		int iNewNode = nodes.size()-1; // Get new node's index
+            nodes.push_back(Node(Hidden)); // Add new node to list
+            int iNewNode = nodes.size() - 1; // Get new node's index
 
-		// Connect new node between previously connected nodes
-		connections.push_back(Connection(
-			connections[iRndCon].in,
-			iNewNode,
-			1.0f,
-			true
-		));
-		connections.push_back(Connection(
-			iNewNode,
-			connections[iRndCon].out,
-			connections[iRndCon].weight,
-			true
-		));
+            // Connect new node between previously connected nodes
+            connections.push_back(Connection(
+                connections[iRndCon].in,
+                iNewNode,
+                1.0f,
+                true
+                ));
+            connections.push_back(Connection(
+                iNewNode,
+                connections[iRndCon].out,
+                connections[iRndCon].weight,
+                true
+                ));
+        }
 	}
+
+    void mutateGridDim() {
+        uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.x++;
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.x--;
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.y++;
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.y--;
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.z++;
+        if (rndUniform(rndGen) < MUTATION_PROB)
+            gridDim.z--;
+    }
 
 	// Propagate values through network one step
 	void computeOneCycle(){
@@ -153,29 +173,31 @@ public:
 	Genome() {}
 	
 	// Create genome, specifying number of input and output nodes
-	Genome(int nIn, int nOut) {
-		uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
+	Genome(int nIn, int nOut, int3 gridDimension) {
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 
+        gridDim = gridDimension;
 		nInputs = nIn;
 		nOutputs = nOut;
 		// Add input nodes
 		for(int i=0; i<nIn; i++) {
 			nodes.push_back(Node(Input));
 		}
-		// Add output nodes and connect them each to a random input node
+		// Add output nodes and connect them to each input node
 		for(int i=0; i<nOut; i++) {
 			nodes.push_back(Node(Output));
-
-			int in  = rndUniform(rndGen) * nIn;
-			int out = nodes.size()-1;
-			float weight = rndNormal(rndGen);
-		/*	printf("\nConnecting node %d to node %d (weight=%.2f)\n",
-				in, out, weight
-			);
-		*/	connections.push_back(Connection(in, out, weight, true));
+            int out = i;
+            for (int j = 0; j<nIn; j++) {
+                int in = j;
+                float weight = rndNormal(rndGen);
+                connections.push_back(Connection(in, out, weight, true));
+            }
 		}
 	}
+
+    int3 getGridDim() {
+        return gridDim;
+    }
 
 	// Input data into the network and get output
 	vector<float> getOutput(vector<float> input) {
@@ -210,6 +232,7 @@ public:
 	void mutate(){
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 		mutateConnections();
+        mutateGridDim();
 		if(rndNormal(rndGen) < MUTATION_PROB)
 			mutateAddConnection();
 		if(rndNormal(rndGen) < MUTATION_PROB)
