@@ -24,7 +24,7 @@
 #define RANGE 3.0f
 #define MOVE_FACTOR 50
 
-#define REPULSION_FORCE 50
+#define REPULSION_FORCE 150
 
 #define CELL_MIN_ENERGY 1.5f
 #define PELLET_MIN_ENERGY 0.01f
@@ -255,10 +255,14 @@ FUNC_EACH(springToParent,
 
 FUNC_PAIR(particlePair,
     if (p1.particleType != Buffer && p2.particleType != Buffer) {
-        float ratio = (dr - p1.radius - p2.radius) / (range - p1.radius - p2.radius);
+        //float ratio = (dr - p1.radius - p2.radius) / (range - p1.radius - p2.radius);
         //float ratio = dr/range;
 
-        xyz f = u * (REPULSION_FORCE * (1 - ratio));
+        //xyz f = u * (REPULSION_FORCE * (1 - ratio));
+        xyz f = u * maxf(
+            (REPULSION_FORCE * (1 - dr / (p1.radius + p2.radius))),
+            0
+        );
         if (p1.particleType == Cell &&
             p2.particleType == Cell)
         {
@@ -272,7 +276,7 @@ FUNC_PAIR(particlePair,
                 }
                 if (neighbours) {
                     //Spring force between neighbours
-                    f = -u * ((dr + (p1.radius+p2.radius)) * SPRING_K);
+                    f = -u * ((dr - (p1.radius + p2.radius)) * SPRING_K);
 
                     //Signalling between cells of same organism
                     float meanSignal = (p1.signal + p2.signal) / 2;
@@ -320,7 +324,7 @@ void setDefaultCellValues(Particle *cell) {
     cell->alpha = 1.0f;
     cell->radius = 1.0f;
     cell->energy = CELL_INITIAL_ENERGY;
-    cell->density = FLUID_DENSITY; // * 1.1f;
+    cell->density = FLUID_DENSITY * 1.1f;
     cell->particleType = Cell;
 }
 
@@ -532,7 +536,7 @@ int main() {
     }
 
     for (int i = 0; i < N_ORIGIN_CELLS; i++) {
-        int3 d = make_int3(10,10,10); //genomes[iOrigin].gridDim;
+        int3 d = make_int3(5,6,4); //genomes[iOrigin].gridDim;
 
         // Define number of in- and outputs
         int inputs = N_INPUTS;              // X, Y, Z, Dist
@@ -612,7 +616,7 @@ int main() {
         */
 //        fx->runEach(springToParent(), setA);
 
-        if (step % 1 == 0) {
+        if (step % 10 == 0) {
             printf("nCells: %i\t", g.nCells);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("step %d\n", step);
