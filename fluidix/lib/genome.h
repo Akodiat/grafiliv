@@ -56,7 +56,7 @@ class Genome {
 private:
 	vector<Connection>	connections;
 	vector<Node> 		nodes;
-    int3                gridDim;
+    int3                boundingRadius;
 	static int currInnovNumber;
 
 	int nInputs;
@@ -137,20 +137,23 @@ private:
         }
 	}
 
-    void mutateGridDim() {
+    void mutateBoundingRadius() {
         uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.x++;
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.x--;
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.y++;
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.y--;
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.z++;
-        if (rndUniform(rndGen) < MUTATION_PROB)
-            gridDim.z--;
+        //Divide by six to make prob of mutation in any direction
+        //into MUTATION_PROB
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.x++;
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.x = max(boundingRadius.x - 1, 0);
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.y++;
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.y = max(boundingRadius.y - 1, 0);
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.z++;
+        if (rndUniform(rndGen) < MUTATION_PROB / 6)
+            boundingRadius.z = max(boundingRadius.z - 1, 0);
+
     }
 
 	// Propagate values through network one step
@@ -173,10 +176,10 @@ public:
 	Genome() {}
 	
 	// Create genome, specifying number of input and output nodes
-	Genome(int nIn, int nOut, int3 gridDimension) {
+	Genome(int nIn, int nOut, int3 boundRadius) {
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 
-        gridDim = gridDimension;
+        boundingRadius = boundRadius;
 		nInputs = nIn;
 		nOutputs = nOut;
 		// Add input nodes
@@ -195,8 +198,14 @@ public:
 		}
 	}
 
-    int3 getGridDim() {
-        return gridDim;
+    int3 getBoundingRadius() {
+        return boundingRadius;
+    }
+    int getMaxCellsReq() {
+        int x = 2 * boundingRadius.x + 1;
+        int y = 2 * boundingRadius.y + 1;
+        int z = 2 * boundingRadius.z + 1;
+        return x*y*z;
     }
 
 	// Input data into the network and get output
@@ -232,7 +241,7 @@ public:
 	void mutate(){
 		normal_distribution<float> rndNormal(0.0f, 1.0f);
 		mutateConnections();
-        mutateGridDim();
+        mutateBoundingRadius();
 		if(rndNormal(rndGen) < MUTATION_PROB)
 			mutateAddConnection();
 		if(rndNormal(rndGen) < MUTATION_PROB)
