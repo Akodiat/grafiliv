@@ -87,7 +87,8 @@ struct Particle {
     float energyOut;
     float maxEnergy;
     int nDivisions;
-    float signal;
+    float preSignal;
+    float postSignal;
     int organism;
     bool toBuffer;
     bool toReproduce;
@@ -167,8 +168,8 @@ FUNC_EACH(handleEnergy,
 )
 
 FUNC_EACH(buoyancy,
-    if (p.particleType == Cell && p.type == Ballast)
-        p.density = clamp(p.density + p.signal, 0.5f, 2.0f);
+    //if (p.particleType == Cell && p.type == Ballast)
+    //    p.density = clamp(p.density + p.signal, 0.5f, 2.0f);
     float volume = p.radius * p.radius * PI;
     p.f.y += (p.density - FLUID_DENSITY) * G * volume;
 )
@@ -182,7 +183,7 @@ FUNC_EACH(moveParticle,
         if (p.links[Right] < 0)  f.x += 1;
         if (p.links[Down]  < 0)  f.y += 1;
         if (p.links[Front] < 0)  f.z += 1;
-        f = xyz_norm(f) * MOVE_FACTOR; //* p.signal;
+        f = xyz_norm(f) * MOVE_FACTOR * clamp(p.preSignal, -1.0f, 1.0f);
 
         addVector(p.f, f);
     }
@@ -207,6 +208,34 @@ FUNC_EACH(handleMissingNeighbours,
             p.toBuffer = true;
             break;
         }
+)
+
+#define sigm(x) x / (1.0f + abs(x))
+FUNC_LINK(activateNerves,
+    float w = g.nerveWeights[i];
+    if ((p1.type == Neuron && p2.type == Sense) ||
+        (p2.type == Neuron && p1.type == Motor) ||
+        (p1.type == Neuron && p1.type == Neuron)
+        )
+    {
+        float signal = w * sigm(p1.preSignal);
+        addFloat(p2.postSignal, signal);
+        addFloat(g.nerveWeights[i], signal);
+    }
+    if ((p2.type == Neuron && p1.type == Sense) ||
+        (p1.type == Neuron && p2.type == Motor) ||
+        (p2.type == Neuron && p2.type == Neuron)
+        )
+    {
+        float signal = w * sigm(p1.preSignal);
+        addFloat(p1.postSignal, signal);
+        addFloat(g.nerveWeights[i], signal);
+    }
+)
+
+FUNC_EACH(normalizeNerves,
+    p.preSignal = sigm(p.postSignal);
+    p.postSignal = 0.0f;
 )
 
 // bouncing hard wall boundary condition
@@ -271,8 +300,8 @@ FUNC_PAIR(particlePair,
                     f = -u * ((dr - (p1.radius + p2.radius)/2) * SPRING_K);
 
                     //Signalling between cells of same organism
-                    float meanSignal = (p1.signal + p2.signal) / 2;
-                    p1.signal = p2.signal = meanSignal;
+                    //float meanSignal = (p1.signal + p2.signal) / 2;
+                    //p1.signal = p2.signal = meanSignal;
 
                     //Energy transmission
                     float p1Surplus = maxf(p1.energy - CELL_MIN_ENERGY, 0);
@@ -305,8 +334,8 @@ FUNC_PAIR(particlePair,
                 ) consumeParticle(p2, p1)
         }
 
-        if (p1.particleType == Cell && p1.type == Sense) p1.signal += 0.1f;
-        if (p2.particleType == Cell && p2.type == Sense) p2.signal += 0.1f;
+        if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.preSignal, 1.0f);
+        if (p2.particleType == Cell && p2.type == Sense) addFloat(p1.preSignal, 1.0f);
 
         addVector(p1.f, f);
         addVector(p2.f, -f);
@@ -363,6 +392,12 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         break;
     case Sense:
         cell->color = BLUE;
+        cell->energyIn = 1.0f;
+        cell->energyOut = 0.0f;
+        cell->maxEnergy = 3.0f;
+        break;
+    case Neuron:
+        cell->color = nanf("gray");
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
@@ -584,6 +619,8 @@ int main() {
         g.nCells = 0;
         fx->runEach(boundary(), pSet);
         fx->runPair(particlePair(), pSet, pSet, RANGE);
+        fx->runLink(activateNerves(), lSet);
+        fx->runEach(normalizeNerves(), lSet);
         fx->runEach(moveParticle(), pSet);
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
