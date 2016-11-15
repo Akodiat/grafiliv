@@ -11,7 +11,7 @@
 #define DT 0.01f // integration time-step
 #define PELLET_LIFETIME 5.0f
 
-#define W make_int3(500, 300, 500)
+#define W make_int3(200, 100, 200)
 #define N 100000
 #define N_ORIGIN_CELLS 1000
 #define N_INITIAL_BUFFER 50000
@@ -26,16 +26,17 @@
 
 #define REPULSION_FORCE 300
 #define SPRING_K 150.0f // spring constant
+#define WALL 100.0f // repulsive wall force
 
 #define CELL_INITIAL_ENERGY 2.0f
 #define CELL_MIN_ENERGY 1.0f
 #define PELLET_MIN_ENERGY 0.01f
 #define DIVISION_ENERGY (CELL_MIN_ENERGY * 2.5f)
-#define ENERGY_PARTICLE_ENERGY 2.0f
+#define ENERGY_PARTICLE_ENERGY 0.5f
 #define MAX_CELL_DIVISIONS 100
 #define CELL_EXISTENCE_THRESHOLD 0.0f
 
-#define CELL_METABOLISM 0.01f
+#define CELL_METABOLISM 0.02f
 #define CELL_DECAY_RATE 0.01f
 
 #define FLUID_DENSITY 1.0f
@@ -219,10 +220,14 @@ FUNC_EACH(boundary,
         turnIntoBuffer(p);
         p.toBuffer = true;
     } if (p.particleType != Buffer) {
-        if (p.r.x < 0)   p.r.x = W.x; //{ p.v.x = 0.9f * (0 - p.r.x)   / DT; p.r.x = 0; }
-        if (p.r.x > W.x) p.r.x = 0;   //{ p.v.x = 0.9f * (W.x - p.r.x) / DT; p.r.x = W.x; }
-        if (p.r.z < 0)   p.r.z = W.z; //{ p.v.z = 0.9f * (0 - p.r.z)   / DT; p.r.z = 0; }
-        if (p.r.z > W.z) p.r.z = 0;   //{ p.v.z = 0.9f * (W.z - p.r.z) / DT; p.r.z = W.z; }
+        //if (p.r.x < 0)   /*p.r.x = W.x; */ { p.v.x = 0.9f * (0 - p.r.x)   / DT; p.r.x = 0; }
+        //if (p.r.x > W.x) /*p.r.x = 0;   */ { p.v.x = 0.9f * (W.x - p.r.x) / DT; p.r.x = W.x; }
+        //if (p.r.z < 0)   /*p.r.z = W.z; */ { p.v.z = 0.9f * (0 - p.r.z)   / DT; p.r.z = 0; }
+        //if (p.r.z > W.z) /*p.r.z = 0;   */ { p.v.z = 0.9f * (W.z - p.r.z) / DT; p.r.z = W.z; }
+        if (p.r.x < 0)   p.f.x += WALL * (0 - p.r.x);
+        if (p.r.x > W.x) p.f.x += WALL * (W.x - p.r.x);
+        if (p.r.z < 0)   p.f.z += WALL * (0 - p.r.z);
+        if (p.r.z > W.x) p.f.z += WALL * (W.x - p.r.z);
 
         if (p.particleType == Energy){
             if (p.r.y < 0) {
@@ -287,8 +292,12 @@ FUNC_PAIR(particlePair,
             //Cells from different organisms
             else {
                 //Kill the other cell if you are sting
-                if (p1.type == Sting) turnIntoPellet(p2);
-                if (p2.type == Sting) turnIntoPellet(p2);
+                if (p1.type == Sting) {
+                    turnIntoPellet(p2);
+                }
+                if (p2.type == Sting) {
+                    turnIntoPellet(p2);
+                }
             }
         }
         //If p1 is a cell
@@ -362,7 +371,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         break;
     case Sense:
         cell->color = BLUE;
-        cell->energyIn = 0.5f;
+        cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
         break;
@@ -385,7 +394,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->maxEnergy = 1.0f;
         break;
     case Sting:
-        cell->color = 0.85f;
+        cell->color = nanf("");
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
@@ -548,9 +557,36 @@ void growCell(Particle *parent, Particle *child, Genome *genomeParent, Genome *g
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
 
+void generateTerrain(Fluidix<> *fx){
+    normal_distribution<float> rndNormal(0.0f, W.y * 0.1);
+
+    int meshParticles   = fx->createParticleSet(W.x * W.z);
+    int meshLinks       = fx->createLinkSet();
+    Particle *mesh      = fx->getParticleArray(meshParticles);
+
+    for (int x = 0; x < W.x; x++)
+    for (int z = 0; z < W.z; z++){
+        int i = x*W.z + z;
+        float y = rndNormal(rndGen);
+        mesh[i].r = make_xyz(x, y, z);
+
+        int n = (x+1)*W.z + z;
+        int s = (x-1)*W.z + z;
+        int e = x*W.z + (z+1);
+        int w = x*W.z + (z-1);
+        fx->addLink(meshLinks, meshParticles, i, meshParticles, n);
+        fx->addLink(meshLinks, meshParticles, i, meshParticles, s);
+        fx->addLink(meshLinks, meshParticles, i, meshParticles, e);
+        fx->addLink(meshLinks, meshParticles, i, meshParticles, w);
+    }
+    //fx->initializeMesh(meshLinks);
+}
+
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int setA = fx->createParticleSet(N);
+
+    //generateTerrain(fx);
 
 /*    fx->createGlobalArray(&g.link, N);
     fx->getGlobalArray(&g.link);
@@ -665,5 +701,5 @@ int main() {
     delete[] genomes;
     delete fx;
 
-    //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
+    system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }
