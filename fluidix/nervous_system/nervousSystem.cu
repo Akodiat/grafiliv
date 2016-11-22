@@ -15,7 +15,7 @@
 #define N_ORIGIN_CELLS 1000
 #define N_INITIAL_BUFFER 50000
 #define MAX_NERVE_CONNECTIONS 100000
-#define N_STEPS 1000000
+#define N_STEPS 3000000
 #define INITIAL_ORGANISM_DIMENSIONS make_int3(1, 1, 1)
 
 //Inputs x,y,z,d:
@@ -35,6 +35,7 @@
 #define ENERGY_PARTICLE_ENERGY 0.5f
 #define MAX_CELL_DIVISIONS 100
 #define CELL_EXISTENCE_THRESHOLD 0.0f
+#define NERVE_LEARNING_RATE 0.1f
 
 #define CELL_METABOLISM 0.02f
 #define CELL_DECAY_RATE 0.01f
@@ -115,6 +116,8 @@ struct Particle {
     );                              \
     p.color = 0.7f;                 \
     p.energy = ENERGY_PARTICLE_ENERGY; \
+    p.preSignal = 0.0f;             \
+    p.postSignal = 0.0f;            \
     p.alpha = 0.3f;                 \
     p.radius = 0.5f;                \
     p.density = 10.0f; 	  				\
@@ -177,13 +180,13 @@ FUNC_EACH(buoyancy,
 FUNC_EACH(moveParticle,
     if (p.particleType == Cell && p.type == Motor) {
         xyz f = make_xyz(0, 0, 0);
-        if (p.links[Left]  < 0)  f.x -= 1;
-        if (p.links[Up]    < 0)  f.y -= 1;
-        if (p.links[Back]  < 0)  f.z -= 1;
-        if (p.links[Right] < 0)  f.x += 1;
-        if (p.links[Down]  < 0)  f.y += 1;
-        if (p.links[Front] < 0)  f.z += 1;
-        f = xyz_norm(f) * MOVE_FACTOR * clamp(p.preSignal, -1.0f, 1.0f);
+        if (p.links[Left]  < 0)  f.x += 1;
+        if (p.links[Up]    < 0)  f.y += 1;
+        if (p.links[Back]  < 0)  f.z += 1;
+        if (p.links[Right] < 0)  f.x -= 1;
+        if (p.links[Down]  < 0)  f.y -= 1;
+        if (p.links[Front] < 0)  f.z -= 1;
+        f = xyz_norm(f) * MOVE_FACTOR; //* rnd_normal(); //clamp(p.preSignal, -1.0f, 1.0f);
 
         addVector(p.f, f);
     }
@@ -211,31 +214,66 @@ FUNC_EACH(handleMissingNeighbours,
 )
 
 #define sigm(x) x / (1.0f + abs(x))
-FUNC_LINK(activateNerves,
+FUNC_LINK(transmitNerveSignals,
     float w = g.nerveWeights[i];
     if ((p1.type == Neuron && p2.type == Sense) ||
         (p2.type == Neuron && p1.type == Motor) ||
         (p1.type == Neuron && p1.type == Neuron)
         )
     {
-        float signal = w * sigm(p1.preSignal);
+        float signal = w * p1.preSignal;
         addFloat(p2.postSignal, signal);
-        addFloat(g.nerveWeights[i], signal);
+        //addFloat(g.nerveWeights[i], signal);
     }
     if ((p2.type == Neuron && p1.type == Sense) ||
         (p1.type == Neuron && p2.type == Motor) ||
         (p2.type == Neuron && p2.type == Neuron)
         )
     {
-        float signal = w * sigm(p1.preSignal);
+        float signal = w * p1.preSignal;
         addFloat(p1.postSignal, signal);
-        addFloat(g.nerveWeights[i], signal);
+        //addFloat(g.nerveWeights[i], signal);
     }
 )
 
-FUNC_EACH(normalizeNerves,
+FUNC_EACH(nerveActivationFunction,
     p.preSignal = sigm(p.postSignal);
+    //p.color = p.preSignal;
+    //if ((p.type == Neuron || p.type == Sense || p.type == Motor))
+    //    printf("Signal of type %i is equal to: %.2f\n", p.type, p.preSignal);
     p.postSignal = 0.0f;
+)
+
+FUNC_LINK(updateNerveWeights,
+    float w = g.nerveWeights[i];
+    //if (w !=1.0) printf("Weight %i is %.2f\n", i, w);
+
+    if ((p1.type == Neuron && p2.type == Sense) ||
+        (p2.type == Neuron && p1.type == Motor) ||
+        (p1.type == Neuron && p1.type == Neuron)
+        )
+    {
+        float x = p1.preSignal;
+        float y = p2.preSignal;
+
+        float dw = NERVE_LEARNING_RATE * (x*y - y*y*w);
+
+        //Oja learning rule:
+        addFloat(g.nerveWeights[i], dw);
+    }
+    if ((p2.type == Neuron && p1.type == Sense) ||
+        (p1.type == Neuron && p2.type == Motor) ||
+        (p2.type == Neuron && p2.type == Neuron)
+        )
+    {
+        float x = p2.preSignal;
+        float y = p1.preSignal;
+
+        float dw = NERVE_LEARNING_RATE * (x*y - y*y*w);
+
+        //Oja learning rule:
+        addFloat(g.nerveWeights[i], dw);
+    }
 )
 
 // bouncing hard wall boundary condition
@@ -313,11 +351,13 @@ FUNC_PAIR(particlePair,
             //Cells from different organisms
             else {
                 //Kill the other cell if you are sting
-                if (p1.type == Sting) {
-                    turnIntoPellet(p2);
+                if (p1.type == Sting && dr <= (p1.radius + p2.radius)) {
+                    //turnIntoPellet(p2);
+                    transmitFloat(p2.energy, p1.energy, 0.01f);
                 }
-                if (p2.type == Sting) {
-                    turnIntoPellet(p2);
+                if (p2.type == Sting && dr <= (p1.radius + p2.radius)) {
+                    //turnIntoPellet(p2);
+                    transmitFloat(p1.energy, p2.energy, 0.01f);
                 }
             }
         }
@@ -619,8 +659,9 @@ int main() {
         g.nCells = 0;
         fx->runEach(boundary(), pSet);
         fx->runPair(particlePair(), pSet, pSet, RANGE);
-        fx->runLink(activateNerves(), lSet);
-        fx->runEach(normalizeNerves(), lSet);
+        fx->runLink(transmitNerveSignals(), lSet);
+        fx->runEach(nerveActivationFunction(), lSet);
+        fx->runLink(updateNerveWeights(), lSet);
         fx->runEach(moveParticle(), pSet);
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
