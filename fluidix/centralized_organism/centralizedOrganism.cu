@@ -13,8 +13,8 @@
 
 #define W make_int3(200, 100, 200)
 #define N 100000
-#define N_ORIGIN_CELLS 1000
-#define N_INITIAL_BUFFER 50000
+#define N_ORIGIN_ORGANISM 1000
+#define BUFFER_SIZE 1000
 #define N_STEPS 3000000
 #define INITIAL_ORGANISM_DIMENSIONS make_int3(1, 1, 1)
 
@@ -22,7 +22,7 @@
 #define N_INPUTS 4
 
 #define RANGE 10.0f
-#define MOVE_FACTOR 10
+#define MOVE_FACTOR 100
 
 #define REPULSION_FORCE 300
 #define SPRING_K 150.0f // spring constant
@@ -58,7 +58,7 @@ using namespace concurrency;
 
 
 enum CellType {
-    Photo, Digest, Sting, Vascular, Fat, Sense, Motor, Ballast, Egg, Neuron, 
+    Photo, Digest, Sting, Vascular, Fat, Sense, Ballast, Egg,
     N_CELL_TYPES
 };
 enum ParticleType {
@@ -134,7 +134,7 @@ struct Particle {
         rnd_uniform()*W.z           \
     );                              \
     p.density = FLUID_DENSITY * 2;  \
-    p.alpha = 0.5f;                 \
+    p.alpha = 0.1f;                 \
     p.color = 0.5f;                 \
     p.radius = 1.0f;                \
     p.organism = -1;                \
@@ -175,7 +175,7 @@ FUNC_EACH(buoyancy,
     float volume = p.radius * p.radius * PI;
     p.f.y += (p.density - FLUID_DENSITY) * G * volume;
 )
-
+/*
 FUNC_EACH(moveParticle,
     if (p.particleType == Cell && p.type == Motor) {
         xyz f = make_xyz(0, 0, 0);
@@ -190,6 +190,7 @@ FUNC_EACH(moveParticle,
         addVector(p.f, f);
     }
 )
+*/
 
 FUNC_EACH(reproduction,
     if (p.particleType == Cell && p.type == Egg)
@@ -282,13 +283,13 @@ FUNC_PAIR(particlePair,
             }
         }
         //If p1 is a cell
-        else if (p1.particleType == Cell) {
+        else if (p1.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p1.type == Photo && p2.particleType == Energy) ||
                 (p1.type == Digest  && p2.particleType == Pellet)
                 ) consumeParticle(p1, p2)
         }
         //If p2 is a cell
-        else if (p2.particleType == Cell) {
+        else if (p2.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p2.type == Photo && p1.particleType == Energy) ||
                 (p2.type == Digest  && p1.particleType == Pellet)
                 ) consumeParticle(p2, p1)
@@ -344,20 +345,8 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->energyOut = 0.01f;
         cell->maxEnergy = 10.0f;
         break;
-    case Motor:
-        cell->color = 0.4f;
-        cell->energyIn = 1.0f;
-        cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
-        break;
     case Sense:
         cell->color = BLUE;
-        cell->energyIn = 1.0f;
-        cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
-        break;
-    case Neuron:
-        cell->color = nanf("gray");
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
@@ -425,15 +414,18 @@ int getIdxFromCoord(int x, int y, int z, int3 br)
 #define iFromCoord(x,y,z) cellBuff.at(getIdxFromCoord(x,y,z,br))
 
 // Initialize new organism
-bool spawnOrganism(
+int spawnOrganism(
     Fluidix<> *fx, int particleSet,
     xyz origin, concurrent_queue<int> *particleBuffer,
-    Particle *p, Genome *genome, organismMap *organisms)
+    Particle *p, Genome *parentGenome, organismMap *organisms)
 {
-    int nParticlesNeeded = genome->getMaxCellsReq();
+    Genome genome(*parentGenome);
+    genome.mutate();
+    
+    int nParticlesNeeded = genome.getMaxCellsReq();
     if (nParticlesNeeded > particleBuffer->unsafe_size()) {
         printf("Not enought particles in buffer\n");
-        return false;
+        return -1;
     }
     vector<int> cellBuff;
     while (nParticlesNeeded) {
@@ -444,14 +436,13 @@ bool spawnOrganism(
         }
     }
 
-    int3 br = genome->getBoundingRadius();
+    int3 br = genome.getBoundingRadius();
 
     int organismID = currGenomeIndex++;
     vector<int> removedCells;
     vector<int> addedCells;
     
     int nSensors = 0;
-    int nActuators = 0;
 
     for (int x = -br.x; x <= br.x; x++)
     for (int y = -br.y; y <= br.y; y++)
@@ -469,7 +460,7 @@ bool spawnOrganism(
         input.push_back(z);
         input.push_back(xyz_len(make_xyz(x,y,z)));
 
-        vector<float> output = genome->getOutput(input);
+        vector<float> output = genome.getOutput(input);
 
         if (applyPhenotype(output, cell)) {
             cell->links[Left] = x + 1 < br.x ? iFromCoord(x + 1, y, z) : -1;
@@ -481,8 +472,6 @@ bool spawnOrganism(
 
             if (cell->type == Sense)
                 nSensors++;
-            if (cell->type == Motor)
-                nActuators++;
             addedCells.push_back(iFromCoord(x, y, z));
         }
         else
@@ -491,11 +480,11 @@ bool spawnOrganism(
     for (int i : removedCells)
         emptyCellPos(p, i);
 
-    NerveSystem nervSys(nSensors, nActuators);
-    Organism organism = { *genome, nervSys, addedCells };
+    NerveSystem nervSys(nSensors, 3);
+    Organism organism = { genome, nervSys, addedCells };
     organisms->emplace(organismID, organism);
 
-    return true;
+    return organismID;
 }
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
@@ -538,13 +527,20 @@ int main() {
     concurrent_queue<int> particleBuffer;
     Particle *p = fx->getParticleArray(pSet);
 
-    for (int i = 0; i < N_INITIAL_BUFFER; i++) {
+    int initialBufferSize =
+        (INITIAL_ORGANISM_DIMENSIONS.x * 2 + 1) *
+        (INITIAL_ORGANISM_DIMENSIONS.y * 2 + 1) *
+        (INITIAL_ORGANISM_DIMENSIONS.z * 2 + 1) *
+        N_ORIGIN_ORGANISM +
+        BUFFER_SIZE;
+
+    for (int i = 0; i < initialBufferSize; i++) {
         turnIntoBuffer(p[i]);
         p[i].r.y -= W.y;
         particleBuffer.push(i);
     }
 
-    for (int i = 0; i < N_ORIGIN_CELLS; i++) {
+    for (int i = 0; i < N_ORIGIN_ORGANISM; i++) {
         int3 gridDim = INITIAL_ORGANISM_DIMENSIONS; //genomes[iOrigin].gridDim;
 
         // Define number of in- and outputs
@@ -563,7 +559,43 @@ int main() {
         g.nCells = 0;
         fx->runEach(boundary(), pSet);
         fx->runPair(particlePair(), pSet, pSet, RANGE);
-        fx->runEach(moveParticle(), pSet);
+
+
+        p = fx->getParticleArray(pSet);
+        vector<int> organismsToRemove;
+        for (auto& iOrg : organisms) {
+            Organism *o = &iOrg.second;
+            vector<float> inputs;
+            int nLiving = 0;
+            int nDead = 0;
+            for (int i : o->cells){
+                if (p[i].particleType == Cell){
+                    if (p[i].type == Sense)
+                        inputs.push_back(p[i].signal);
+                    nLiving++;
+                }
+                else
+                nDead++;
+            }
+            if (nDead > nLiving) {
+                for (int i : o->cells)
+                if (p[i].particleType == Cell)
+                    turnIntoPellet(p[i]);
+                organismsToRemove.push_back(iOrg.first);
+                continue;
+            }
+            vector<float> output = o->nervSystem.getOutput(inputs);
+
+            xyz f = make_xyz(output[0], output[1], output[2]);
+            for (int i : o->cells) {
+                p[i].f += f * MOVE_FACTOR;
+            }
+        }
+        for (int i : organismsToRemove)
+            organisms.erase(i);
+        fx->applyParticleArray(pSet);
+
+        //fx->runEach(moveParticle(), pSet);
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
         fx->runEach(integrate(), pSet);
@@ -571,7 +603,7 @@ int main() {
         for (int i = 0; i<N; i++)
         {
             if (p[i].toBuffer) {
-                if (particleBuffer.unsafe_size() > N_INITIAL_BUFFER) {
+                if (particleBuffer.unsafe_size() > BUFFER_SIZE) {
                     turnIntoEnergy(p[i]);                  
                 } else {
                     turnIntoBuffer(p[i]);
@@ -587,7 +619,8 @@ int main() {
                     Genome g = organisms.at(p[i].organism).genome;
                     if (g.getMaxCellsReq() * CELL_INITIAL_ENERGY <= p[i].energy) {
                         g.mutate();
-                        spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &organisms);
+                        int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &organisms);
+                        organisms.at(orgID).nervSystem.mutate();
                         p[i].toReproduce = false;
                         p[i].toBuffer = true;
                         fx->applyParticleArray(pSet);
@@ -596,22 +629,6 @@ int main() {
             }
         } //);
 
-        for (auto& iOrg : organisms) {
-            Organism *o = &iOrg.second;
-            vector<float> inputs;
-            for (int i : o->cells){
-                if (p[i].type == Sense)
-                    inputs.push_back(p[i].signal);
-            }
-            vector<float> outputs = o->nervSystem.getOutput(inputs);
-            int iOutput = 0;
-            for (int i : o->cells){
-                if (iOutput >= outputs.size())
-                    break;
-                if (p[i].type == Motor)
-                    p[i].signal = outputs[iOutput++];
-            }
-        }
         //fx->applyParticleArray(pSet);
 
         if (step % 10 == 0) {
