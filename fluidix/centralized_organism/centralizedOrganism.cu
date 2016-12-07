@@ -15,7 +15,7 @@
 #define N 100000
 #define N_ORIGIN_ORGANISM 1000
 #define BUFFER_SIZE 1000
-#define N_STEPS 3000000
+#define N_STEPS 1000000
 #define INITIAL_ORGANISM_DIMENSIONS make_int3(1, 1, 1)
 
 //Inputs x,y,z,d:
@@ -78,7 +78,7 @@ struct Organism {
 typedef std::unordered_map<int, Organism> organismMap;
 
 struct Global {
-    int nCells;
+    int nEggs;
     float *nerveWeights;
 } g;
 
@@ -98,7 +98,6 @@ struct Particle {
     int organism;
     bool toBuffer;
     bool toReproduce;
-    Particle *origin;
     int links[6];
     CellType type;
 };
@@ -203,8 +202,8 @@ FUNC_EACH(reproduction,
 
 // bouncing hard wall boundary condition
 FUNC_EACH(boundary,
-    if (p.particleType == Cell)
-    addInteger(g.nCells, 1);
+    if (p.particleType == Cell && p.type == Egg)
+        addInteger(g.nEggs, 1);
 
     // Check for wierd 1.#R values... NaN?
     if (isWeirdParticle(p)) {
@@ -274,11 +273,11 @@ FUNC_PAIR(particlePair,
                 //Kill the other cell if you are sting
                 if (p1.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoPellet(p2);
-                    transmitFloat(p2.energy, p1.energy, 0.01f);
+                    transmitFloat(p2.energy, p1.energy, 0.05f);
                 }
                 if (p2.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoPellet(p2);
-                    transmitFloat(p1.energy, p2.energy, 0.01f);
+                    transmitFloat(p1.energy, p2.energy, 0.05f);
                 }
             }
         }
@@ -304,6 +303,20 @@ FUNC_PAIR(particlePair,
         //p1.color = p1.signal;
         //p2.color = p2.signal;
     }
+)
+
+FUNC_SURFACE(collideGround,
+if (p.particleType != Energy){
+    xyz f = u * 50 * dr;
+    p.f += f;
+    
+    if (p3) f /= 3;
+    else if (p2) f /= 2;
+    if (p1) addVector(p1->f, -f);
+    if (p2) addVector(p2->f, -f);
+    if (p3) addVector(p3->f, -f);
+    
+}
 )
 
 void setDefaultCellValues(Particle *cell) {
@@ -379,11 +392,6 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
-    }
-    if (cell->origin == cell) {
-        cell->energyIn = 1.0f;
-        //cell->energyOut = 0.0f;
-        //cell->maxEnergy = 3.0f;
     }
     cell->nDivisions = output[N_CELL_TYPES] * MAX_CELL_DIVISIONS;
     return true;
@@ -489,38 +497,66 @@ int spawnOrganism(
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
 
-void generateTerrain(Fluidix<> *fx){
-    normal_distribution<float> rndNormal(0.0f, W.y * 0.1);
+int generateTerrain(Fluidix<> *fx){
+    uniform_real_distribution<float> rndUniform(0.0f, W.y * 0.4);
 
-    int meshParticles   = fx->createParticleSet(W.x * W.z);
-    int meshLinks       = fx->createLinkSet();
-    Particle *mesh      = fx->getParticleArray(meshParticles);
+    int terrDimX = 10;
+    int terrDimZ = 10;
 
-    for (int x = 0; x < W.x; x++)
-    for (int z = 0; z < W.z; z++){
-        int i = x*W.z + z;
-        float y = rndNormal(rndGen);
-        mesh[i].r = make_xyz(x, y, z);
+    int nParticles = (terrDimX*terrDimZ * 2);
 
-        int n = (x+1)*W.z + z;
-        int s = (x-1)*W.z + z;
-        int e = x*W.z + (z+1);
-        int w = x*W.z + (z-1);
-        fx->addLink(meshLinks, meshParticles, i, meshParticles, n);
-        fx->addLink(meshLinks, meshParticles, i, meshParticles, s);
-        fx->addLink(meshLinks, meshParticles, i, meshParticles, e);
-        fx->addLink(meshLinks, meshParticles, i, meshParticles, w);
+    int meshParticles = fx->createParticleSet(nParticles);
+    int meshLinks     = fx->createLinkSet();
+    Particle *mesh    = fx->getParticleArray(meshParticles);
+
+    float dx = W.x / (terrDimX-1);
+    float dz = W.z / (terrDimZ-1);
+
+    for (int x = 0; x < terrDimX; x++)
+    for (int z = 0; z < terrDimX; z++){
+        int i = x*terrDimZ + z;
+        mesh[i].r = make_xyz(
+            x*dx,
+            rndUniform(rndGen),
+            z*dz
+        );
+        mesh[i + nParticles/2].r = make_xyz(
+            x*dx,
+            0,
+            z*dz
+        );
+
+        //Link terrain particles together:
+        int s = (x - 1)*terrDimZ + z;
+        int w = x*terrDimZ + (z - 1);
+        int sw = (x - 1)*terrDimZ + (z - 1);
+
+        if ((x - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, s);
+        if ((z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, w);
+        if ((x - 1) >= 0 && (z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, sw);
+
+        if ((x - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, s + (nParticles / 2));
+        if ((z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, w + (nParticles / 2));
+        if ((x - 1) >= 0 && (z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, sw + (nParticles / 2));
+
+        if (x % (terrDimX - 1) == 0 || z % (terrDimZ - 1) == 0){
+            fx->addLink(meshLinks, meshParticles, i, meshParticles, i + (nParticles / 2));
+            //if (x > 0 && z > 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, s + (nParticles / 2));
+        }
+        fx->applyParticleArray(meshParticles);
+        fx->outputFrame("output");
     }
+    return meshLinks;
 }
 
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int pSet = fx->createParticleSet(N);
 
-    //generateTerrain(fx);
+    int terrain = generateTerrain(fx);
 
     currGenomeIndex = 0;
-    g.nCells = 0;
+    g.nEggs = 0;
     organismMap organisms;
 
     fx->runEach(init(), pSet);
@@ -550,14 +586,17 @@ int main() {
         Genome g = Genome(inputs, outputs, gridDim);
         g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
         xyz origin = make_xyz_uniform() * int3_to_xyz(W);
+        origin.y /= 2;
+        origin.y += W.y / 2;
 
         spawnOrganism(fx, pSet, origin, &particleBuffer, p, &g, &organisms);
     }
     fx->applyParticleArray(pSet);
 
     for (int step = 0; step < N_STEPS; step++) {
-        g.nCells = 0;
+        g.nEggs = 0;
         fx->runEach(boundary(), pSet);
+        fx->runSurface(collideGround(), terrain, pSet,RANGE);
         fx->runPair(particlePair(), pSet, pSet, RANGE);
 
 
@@ -589,6 +628,7 @@ int main() {
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 p[i].f += f * MOVE_FACTOR;
+                p[i].signal *= 0.5f;
             }
         }
         for (int i : organismsToRemove)
@@ -627,20 +667,20 @@ int main() {
                     }
                 }
             }
-        } //);
+        }//);
 
         //fx->applyParticleArray(pSet);
 
         if (step % 10 == 0) {
-            printf("nCells: %i\t", g.nCells);
+            printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("step %d\n", step);
             fx->outputFrame("output");
         }
 
-//        if (!g.nCells) {
-//            break;
-//        }
+        if (!g.nEggs) {
+            break;
+        }
     }
     delete fx;
 
