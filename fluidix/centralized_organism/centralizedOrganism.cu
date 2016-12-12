@@ -11,8 +11,8 @@
 #define DT 0.01f // integration time-step
 #define PELLET_LIFETIME 5.0f
 
-#define W make_int3(200, 100, 200)
-#define N 100000
+#define W make_int3(300, 100, 300)
+#define N 300000
 #define N_ORIGIN_ORGANISM 1000
 #define BUFFER_SIZE 1000
 #define N_STEPS 1000000
@@ -307,7 +307,9 @@ FUNC_PAIR(particlePair,
 
 FUNC_SURFACE(collideGround,
 if (p.particleType != Energy){
-    xyz f = u * 50 * dr;
+    if (dr > 1) dr = 1;
+    p.f += WALL * u * dr;
+    /*xyz f = u * 50 * dr;
     p.f += f;
     
     if (p3) f /= 3;
@@ -315,7 +317,7 @@ if (p.particleType != Energy){
     if (p1) addVector(p1->f, -f);
     if (p2) addVector(p2->f, -f);
     if (p3) addVector(p3->f, -f);
-    
+    */
 }
 )
 
@@ -498,7 +500,7 @@ int spawnOrganism(
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
 
 int generateTerrain(Fluidix<> *fx){
-    uniform_real_distribution<float> rndUniform(0.0f, W.y * 0.4);
+    exponential_distribution<float> rndUniform(1);
 
     int terrDimX = 10;
     int terrDimZ = 10;
@@ -517,7 +519,7 @@ int generateTerrain(Fluidix<> *fx){
         int i = x*terrDimZ + z;
         mesh[i].r = make_xyz(
             x*dx,
-            rndUniform(rndGen),
+            rndUniform(rndGen) * 10 + 10,
             z*dz
         );
         mesh[i + nParticles/2].r = make_xyz(
