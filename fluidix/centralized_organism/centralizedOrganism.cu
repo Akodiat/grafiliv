@@ -58,7 +58,7 @@ using namespace concurrency;
 
 
 enum CellType {
-    Photo, Digest, Sting, Vascular, Fat, Sense, Ballast, Egg,
+    Photo, Digest, Sting, Vascular, Fat, Sense, Egg,
     N_CELL_TYPES
 };
 enum ParticleType {
@@ -366,12 +366,6 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->energyOut = 0.0f;
         cell->maxEnergy = 3.0f;
         break;
-    case Ballast:
-        cell->color = CYAN;
-        cell->energyIn = 1.0f;
-        cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
-        break;
     case Egg:
         cell->color = ORANGE;
         cell->energyIn = 1.0f;
@@ -379,7 +373,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->maxEnergy = 1000.0f;
         break;
     case Vascular:
-        cell->color = 0.2;
+        cell->color = CYAN;
         cell->energyIn = 1.0f;
         cell->energyOut = 0.2f;
         cell->maxEnergy = 1.0f;
@@ -427,7 +421,7 @@ int getIdxFromCoord(int x, int y, int z, int3 br)
 int spawnOrganism(
     Fluidix<> *fx, int particleSet,
     xyz origin, concurrent_queue<int> *particleBuffer,
-    Particle *p, Genome *parentGenome, organismMap *organisms)
+    Particle *p, Genome *parentGenome, NerveSystem *parentNerves, organismMap *organisms)
 {
     Genome genome(*parentGenome);
     genome.mutate();
@@ -490,7 +484,16 @@ int spawnOrganism(
     for (int i : removedCells)
         emptyCellPos(p, i);
 
-    NerveSystem nervSys(nSensors, 3);
+    printf("nSensors: %i\n", nSensors);
+
+    NerveSystem nervSys;
+    if (parentNerves != nullptr){
+        nervSys = NerveSystem(*parentNerves);
+        nervSys.updateInputs(nSensors);
+        nervSys.mutate();
+    } else
+        nervSys = NerveSystem(nSensors, 3);
+
     Organism organism = { genome, nervSys, addedCells };
     organisms->emplace(organismID, organism);
 
@@ -514,13 +517,17 @@ int generateTerrain(Fluidix<> *fx){
     float dx = W.x / (terrDimX-1);
     float dz = W.z / (terrDimZ-1);
 
+    float margin = 1.2;
+    float shiftX = ((margin - 1)*W.x) / 2;
+    float shiftZ = ((margin - 1)*W.z) / 2;
+
     for (int x = 0; x < terrDimX; x++)
     for (int z = 0; z < terrDimX; z++){
         int i = x*terrDimZ + z;
         mesh[i].r = make_xyz(
-            x*dx,
+            (x*dx)*margin - shiftX,
             rndUniform(rndGen) * 10 + 10,
-            z*dz
+            (z*dz)*margin - shiftZ
         );
         mesh[i + nParticles/2].r = make_xyz(
             x*dx,
@@ -591,7 +598,7 @@ int main() {
         origin.y /= 2;
         origin.y += W.y / 2;
 
-        spawnOrganism(fx, pSet, origin, &particleBuffer, p, &g, &organisms);
+        spawnOrganism(fx, pSet, origin, &particleBuffer, p, &g, NULL, &organisms);
     }
     fx->applyParticleArray(pSet);
 
@@ -659,9 +666,10 @@ int main() {
                 if (p[i].type == Egg) { //&& p[i].toReproduce) {
                     //printf("Has %.2f, needs %.2f - ", p[i].energy, genomes[i].getMaxCellsReq() * CELL_INITIAL_ENERGY);
                     Genome g = organisms.at(p[i].organism).genome;
+                    NerveSystem ns = organisms.at(p[i].organism).nervSystem;
                     if (g.getMaxCellsReq() * CELL_INITIAL_ENERGY <= p[i].energy) {
                         g.mutate();
-                        int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &organisms);
+                        int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &ns, &organisms);
                         organisms.at(orgID).nervSystem.mutate();
                         p[i].toReproduce = false;
                         p[i].toBuffer = true;
