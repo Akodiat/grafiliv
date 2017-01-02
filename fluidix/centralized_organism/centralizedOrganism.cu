@@ -12,7 +12,7 @@
 #define PELLET_LIFETIME 5.0f
 
 #define W make_int3(300, 100, 300)
-#define N 300000
+#define N 50000
 #define N_ORIGIN_ORGANISM 1000
 #define BUFFER_SIZE 1000
 #define N_STEPS 1000000
@@ -211,11 +211,18 @@ FUNC_EACH(boundary,
         turnIntoBuffer(p);
         p.toBuffer = true;
     } if (p.particleType != Buffer) {
+        /*
         if (p.r.x < 0)   p.f.x += WALL * (0 - p.r.x);
         if (p.r.x > W.x) p.f.x += WALL * (W.x - p.r.x);
         if (p.r.z < 0)   p.f.z += WALL * (0 - p.r.z);
         if (p.r.z > W.x) p.f.z += WALL * (W.x - p.r.z);
-
+        */
+        
+        if (p.r.x < 0)   p.r.x = W.x;
+        if (p.r.x > W.x) p.r.x = 0;
+        if (p.r.z < 0)   p.r.z = W.z;
+        if (p.r.z > W.x) p.r.z = 0;
+        
         if (p.particleType == Energy){
             if (p.r.y < 0) {
                 p.toBuffer = true;
@@ -309,6 +316,7 @@ FUNC_SURFACE(collideGround,
 if (p.particleType != Energy){
     if (dr > 1) dr = 1;
     p.f += WALL * u * dr;
+    
     /*xyz f = u * 50 * dr;
     p.f += f;
     
@@ -562,7 +570,7 @@ int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int pSet = fx->createParticleSet(N);
 
-    int terrain = generateTerrain(fx);
+    //int terrain = generateTerrain(fx);
 
     currGenomeIndex = 0;
     g.nEggs = 0;
@@ -605,7 +613,7 @@ int main() {
     for (int step = 0; step < N_STEPS; step++) {
         g.nEggs = 0;
         fx->runEach(boundary(), pSet);
-        fx->runSurface(collideGround(), terrain, pSet,RANGE);
+        //fx->runSurface(collideGround(), terrain, pSet);
         fx->runPair(particlePair(), pSet, pSet, RANGE);
 
 
@@ -685,7 +693,7 @@ int main() {
             printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("step %d\n", step);
-            fx->outputFrame("output");
+            fx->outputFrame("output2");
         }
 
         if (!g.nEggs) {
