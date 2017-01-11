@@ -15,7 +15,7 @@
 #define N 50000
 #define N_ORIGIN_ORGANISM 1000
 #define BUFFER_SIZE 1000
-#define N_STEPS 1000000
+#define N_STEPS 100000000
 #define INITIAL_ORGANISM_DIMENSIONS make_int3(1, 1, 1)
 
 //Inputs x,y,z,d:
@@ -121,7 +121,7 @@ struct Particle {
     p.energy = ENERGY_PARTICLE_ENERGY; \
     p.signal = 0.0f;                \
     p.alpha = 0.3f;                 \
-    p.radius = 0.5f;                \
+    p.radius = 2.0f;                \
     p.density = 10.0f; 	  				\
 }
 
@@ -301,8 +301,8 @@ FUNC_PAIR(particlePair,
                 ) consumeParticle(p2, p1)
         }
 
-        if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, 1.0f);
-        if (p2.particleType == Cell && p2.type == Sense) addFloat(p1.signal, 1.0f);
+        if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, 1.0f/dr);
+        if (p2.particleType == Cell && p2.type == Sense) addFloat(p1.signal, 1.0f/dr);
 
         addVector(p1.f, f);
         addVector(p2.f, -f);
@@ -566,6 +566,23 @@ int generateTerrain(Fluidix<> *fx){
     return meshLinks;
 }
 
+int initializeOrganism(Fluidix<> *fx, int pSet, concurrent_queue<int> *particleBuffer, Particle *p, organismMap *organisms)
+{
+    int3 gridDim = INITIAL_ORGANISM_DIMENSIONS; //genomes[iOrigin].gridDim;
+
+    // Define number of in- and outputs
+    int inputs = N_INPUTS;              // X, Y, Z, Dist
+    int nonCelltypeOutputs = 2;         // Growth prob
+    int outputs = N_CELL_TYPES + nonCelltypeOutputs;
+    Genome g = Genome(inputs, outputs, gridDim);
+    g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
+    xyz origin = make_xyz_uniform() * int3_to_xyz(W);
+    origin.y /= 2;
+    origin.y += W.y / 2;
+
+    return spawnOrganism(fx, pSet, origin, particleBuffer, p, &g, NULL, organisms);
+}
+
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int pSet = fx->createParticleSet(N);
@@ -594,21 +611,11 @@ int main() {
     }
 
     for (int i = 0; i < N_ORIGIN_ORGANISM; i++) {
-        int3 gridDim = INITIAL_ORGANISM_DIMENSIONS; //genomes[iOrigin].gridDim;
-
-        // Define number of in- and outputs
-        int inputs = N_INPUTS;              // X, Y, Z, Dist
-        int nonCelltypeOutputs = 2;         // Growth prob
-        int outputs = N_CELL_TYPES + nonCelltypeOutputs;
-        Genome g = Genome(inputs, outputs, gridDim);
-        g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
-        xyz origin = make_xyz_uniform() * int3_to_xyz(W);
-        origin.y /= 2;
-        origin.y += W.y / 2;
-
-        spawnOrganism(fx, pSet, origin, &particleBuffer, p, &g, NULL, &organisms);
+        initializeOrganism(fx, pSet, &particleBuffer, p, &organisms);
     }
     fx->applyParticleArray(pSet);
+
+    int nReboots = 0;
 
     for (int step = 0; step < N_STEPS; step++) {
         g.nEggs = 0;
@@ -692,12 +699,29 @@ int main() {
         if (step % 10 == 0) {
             printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
+            printf("nReboots: %i\t", nReboots);
             printf("step %d\n", step);
-            fx->outputFrame("output2");
+            if (currGenomeIndex - N_ORIGIN_ORGANISM - nReboots > 0)
+                fx->outputFrame("output");
         }
 
         if (!g.nEggs) {
-            break;
+            printf("No eggs left, inserting new random organism\n");
+            //Try to add a new random organism.
+            //If it fails because of a depleated buffer, sacrifice the first
+            //particles to the buffer
+            if (!initializeOrganism(fx, pSet, &particleBuffer, p, &organisms)) {
+                for (int i = 0; i < initialBufferSize; i++) {
+                    turnIntoBuffer(p[i]);
+                    p[i].r.y -= W.y;
+                    particleBuffer.push(i);
+                }
+            }
+            else {
+                //fx->setOutputFrameStart();
+                nReboots++;
+                step = 0;
+            }
         }
     }
     delete fx;
