@@ -7,6 +7,12 @@ output/
 # Unity
 ########
 
+Library/
+Temp/
+Obj/
+Build/
+
+
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/

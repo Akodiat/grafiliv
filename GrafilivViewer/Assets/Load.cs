@@ -17,8 +17,10 @@ public enum ParticleType
 
 public class Load : MonoBehaviour {
 
-    public GameObject photocyte;
-    public GameObject phagocyte;
+    public GameObject particlePrefab;
+    public Material mPhotocyte;
+    public Material mPhagocyte;
+    public Material mPhoton;
 
     [SerializeField]
     private InputField frameField;
@@ -33,6 +35,43 @@ public class Load : MonoBehaviour {
 	void Start () {
         DirectoryInfo dir = new DirectoryInfo("output");
         files = dir.GetFiles();
+        frame = 0;
+
+        string line;   
+        try {
+            line = files[frame].OpenText().ReadToEnd();
+        }
+        catch (FileNotFoundException) {
+            return;
+        }
+        Particle[] p = JsonHelper.FromJson<Particle>(line);
+
+        for (int i = 0; i < p.Length; i++)
+        {
+
+            Vector3 position = new Vector3(
+                p[i].x, p[i].y, p[i].z
+            );
+
+            GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
+            MeshRenderer renderer = particle.GetComponent(typeof(MeshRenderer)) as MeshRenderer;
+                
+            if (p[i].pt == ParticleType.Cell)
+            {
+                switch (p[i].ct)
+                {
+                    case CellType.Photo:
+                        renderer.material = mPhotocyte;
+                        break;
+                    case CellType.Digest:
+                        renderer.material = mPhagocyte;
+                        break;
+                }
+            }
+            else if (p[i].pt == ParticleType.Energy)
+                renderer.material = mPhoton;
+            particles.Add(particle);
+        }
     }
     // Update is called once per frame
     void Update () {
@@ -41,44 +80,42 @@ public class Load : MonoBehaviour {
         if (frame != newFrame)
         {
             frame = newFrame;
-            particles.ForEach(particle => Destroy(particle));
 
             string line;
             
-            try {
+            try
+            {
                 line = files[frame].OpenText().ReadToEnd();
-                /*
-                using (StreamReader sr = new StreamReader("output/frame" + frame + ".json")) {
-                    line = sr.ReadToEnd();
-                }
-                */
             }
-            catch (FileNotFoundException e) {
+            catch (ArgumentOutOfRangeException)
+            {
                 return;
             }
 
-
             Particle[] p = JsonHelper.FromJson<Particle>(line);
-
-            //print("Number of particles: " + p.Length);
 
             for (int i = 0; i < p.Length; i++)
             {
-                if (p[i].pt == ParticleType.Cell)
-                {
-                    Vector3 position = new Vector3(
+                Vector3 position = new Vector3(
                         p[i].x, p[i].y, p[i].z
                     );
+                particles[i].transform.position = position;
+                MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
+
+                if (p[i].pt == ParticleType.Cell)
+                {
                     switch (p[i].ct)
                     {
                         case CellType.Photo:
-                            particles.Add(Instantiate(photocyte, position, Quaternion.identity));
+                            renderer.material = mPhotocyte;
                             break;
                         case CellType.Digest:
-                            particles.Add(Instantiate(phagocyte, position, Quaternion.identity));
+                            renderer.material = mPhagocyte;
                             break;
                     }
                 }
+                else if (p[i].pt == ParticleType.Energy)
+                    renderer.material = mPhoton;
             }
         }
     }
