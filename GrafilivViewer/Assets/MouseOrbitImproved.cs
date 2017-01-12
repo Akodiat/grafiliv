@@ -58,6 +58,15 @@ public class MouseOrbitImproved : MonoBehaviour
                 target.position -= rotation * dx;
             }
 
+            Vector3 keyboardMove = new Vector3(
+                (Input.GetKey(KeyCode.LeftArrow) ? 1 : 0) +
+                (Input.GetKey(KeyCode.RightArrow) ? -1 : 0),
+                0,
+                (Input.GetKey(KeyCode.UpArrow) ? -1 : 0) +
+                (Input.GetKey(KeyCode.DownArrow) ? 1 : 0)
+                );
+            target.position -= rotation * keyboardMove;
+
             distance = Mathf.Clamp(distance - Input.GetAxis("Mouse ScrollWheel") * 5, distanceMin, distanceMax);
 
             RaycastHit hit;

@@ -5,7 +5,10 @@ using UnityEngine;
 
 public class Playback : MonoBehaviour {
     [SerializeField]
-    private InputField frameField;
+    private InputField frameInput;
+
+    [SerializeField]
+    private InputField frameSkipInput;
 
     [SerializeField]
     private Toggle toggle;
@@ -20,9 +23,10 @@ public class Playback : MonoBehaviour {
 	void Update () {
         if (toggle.isOn)
         {
-            int frame = int.Parse(frameField.text);
-            frame++;
-            frameField.text = ""+frame;
+            int frame = int.Parse(frameInput.text);
+            int skip = int.Parse(frameSkipInput.text);
+            frame += skip;
+            frameInput.text = ""+frame;
         }
 	}
 }

@@ -20,7 +20,11 @@ public class Load : MonoBehaviour {
     public GameObject particlePrefab;
     public Material mPhotocyte;
     public Material mPhagocyte;
-    public Material mPhoton;
+    public Material mDevorocyte;
+    public Material mLipocyte;
+    public Material mSensor;
+    public Material mEgg;
+
 
     [SerializeField]
     private InputField frameField;
@@ -30,16 +34,39 @@ public class Load : MonoBehaviour {
     private List<GameObject> particles = new List<GameObject>();
 
     private FileInfo[] files;
+    private DirectoryInfo dir;
+
+    
+    private Material getMaterial(CellType ct){
+        switch (ct)
+        {
+            case CellType.Photo:
+                return mPhotocyte;
+            case CellType.Digest:
+                return mPhagocyte;
+            case CellType.Fat:
+                return mLipocyte;
+            case CellType.Sense:
+                return mSensor;
+            case CellType.Sting:
+                return mDevorocyte;
+            case CellType.Egg:
+                return mEgg;
+            default:
+                return null;
+        }
+    }
 
 	// Use this for initialization
 	void Start () {
-        DirectoryInfo dir = new DirectoryInfo("output");
-        files = dir.GetFiles();
+        //dir = new DirectoryInfo("output");
+        //files = dir.GetFiles();
         frame = 0;
 
         string line;   
         try {
-            line = files[frame].OpenText().ReadToEnd();
+            StreamReader sr = new StreamReader("output/frame" + frame + ".json");
+            line = sr.ReadToEnd();
         }
         catch (FileNotFoundException) {
             return;
@@ -58,18 +85,8 @@ public class Load : MonoBehaviour {
                 
             if (p[i].pt == ParticleType.Cell)
             {
-                switch (p[i].ct)
-                {
-                    case CellType.Photo:
-                        renderer.material = mPhotocyte;
-                        break;
-                    case CellType.Digest:
-                        renderer.material = mPhagocyte;
-                        break;
-                }
+                renderer.material = getMaterial(p[i].ct);
             }
-            else if (p[i].pt == ParticleType.Energy)
-                renderer.material = mPhoton;
             particles.Add(particle);
         }
     }
@@ -82,12 +99,13 @@ public class Load : MonoBehaviour {
             frame = newFrame;
 
             string line;
-            
+
             try
             {
-                line = files[frame].OpenText().ReadToEnd();
+                StreamReader sr = new StreamReader("output/frame" + frame + ".json");
+                line = sr.ReadToEnd();
             }
-            catch (ArgumentOutOfRangeException)
+            catch (FileNotFoundException)
             {
                 return;
             }
@@ -114,21 +132,11 @@ public class Load : MonoBehaviour {
                 }
 
                 MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
-
                 if (p[i].pt == ParticleType.Cell)
                 {
-                    switch (p[i].ct)
-                    {
-                        case CellType.Photo:
-                            renderer.material = mPhotocyte;
-                            break;
-                        case CellType.Digest:
-                            renderer.material = mPhagocyte;
-                            break;
-                    }
+                    renderer.material = getMaterial(p[i].ct);
                 }
-                else if (p[i].pt == ParticleType.Energy)
-                    renderer.material = mPhoton;
+
                 i++;
             }
             while (i < particles.Count)

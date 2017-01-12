@@ -595,10 +595,14 @@ void outputParticles(Particle *p, int nParticles, int step) {
 		}
 
 		fprintf(out, "{\"Items\":[\n");
+		bool first = true;
 		for (int i = 0; i < nParticles; i++) {
 			if(p[i].particleType == Cell) {
-				if(i != 0)
+				if(first){
+					first = false;
+				} else {
 					fprintf(out, ",");
+				}
 				fprintf(out,
 					//"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
 					"{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
