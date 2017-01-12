@@ -596,16 +596,18 @@ void outputParticles(Particle *p, int nParticles, int step) {
 
 		fprintf(out, "{\"Items\":[\n");
 		for (int i = 0; i < nParticles; i++) {
-			fprintf(out,
-				//"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-				"{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}",
-				(int) p[i].particleType,
-				(int) p[i].type, 
-				p[i].organism,
-				p[i].r.x, p[i].r.y, p[i].r.z
-			);
-			if(i != nParticles-1)
-				fprintf(out, ",\n");
+			if(p[i].particleType == Cell) {
+				if(i != 0)
+					fprintf(out, ",");
+				fprintf(out,
+					//"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
+					"{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
+					(int) p[i].particleType,
+					(int) p[i].type, 
+					p[i].organism,
+					p[i].r.x, p[i].r.y, p[i].r.z
+				);
+			}
 		}
 		fprintf(out, "]}");
 		fclose(out);
