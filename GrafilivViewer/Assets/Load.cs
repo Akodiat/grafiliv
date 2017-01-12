@@ -94,12 +94,25 @@ public class Load : MonoBehaviour {
 
             Particle[] p = JsonHelper.FromJson<Particle>(line);
 
-            for (int i = 0; i < p.Length; i++)
+            int i = 0;
+            while (i < p.Length)
             {
                 Vector3 position = new Vector3(
                         p[i].x, p[i].y, p[i].z
-                    );
-                particles[i].transform.position = position;
+                );
+
+                //print(i);
+
+                if (i >= particles.Count)
+                {
+                    GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
+                    particles.Add(particle);
+                }
+                else
+                {
+                    particles[i].transform.position = position;
+                }
+
                 MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
 
                 if (p[i].pt == ParticleType.Cell)
@@ -116,6 +129,12 @@ public class Load : MonoBehaviour {
                 }
                 else if (p[i].pt == ParticleType.Energy)
                     renderer.material = mPhoton;
+                i++;
+            }
+            while (i < particles.Count)
+            {
+                Destroy(particles[i]);
+                particles.RemoveAt(i);
             }
         }
     }
