@@ -108,61 +108,68 @@ public class Load : MonoBehaviour {
         if (frame != newFrame)
         {
             frame = newFrame;
+            Refresh();
+        }
+    }
 
-            string line;
+    public void Refresh()
+    {
+        string line;
 
-            try
+        try
+        {
+            StreamReader sr = new StreamReader("output/frame" + frame + ".json");
+            line = sr.ReadToEnd();
+        }
+        catch (FileNotFoundException)
+        {
+            return;
+        }
+
+        Particle[] p = JsonHelper.FromJson<Particle>(line);
+
+        int i = 0;
+        while (i < p.Length)
+        {
+            Vector3 position = new Vector3(
+                    p[i].x, p[i].y, p[i].z
+            );
+
+            //print(i);
+
+            if (i >= particles.Count)
             {
-                StreamReader sr = new StreamReader("output/frame" + frame + ".json");
-                line = sr.ReadToEnd();
+                GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
+                particles.Add(particle);
             }
-            catch (FileNotFoundException)
+            else
             {
-                return;
+                particles[i].transform.position = position;
             }
 
-            Particle[] p = JsonHelper.FromJson<Particle>(line);
-
-            int i = 0;
-            while (i < p.Length)
+            //Only enable collision if inspect is on:
+            particles[i].GetComponent<SphereCollider>().enabled = inspectToggle.isOn;
+            if (inspectToggle.isOn)
             {
-                Vector3 position = new Vector3(
-                        p[i].x, p[i].y, p[i].z
-                );
-
-                //print(i);
-
-                if (i >= particles.Count)
-                {
-                    GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
-                    particles.Add(particle);
-                }
-                else
-                {
-                    particles[i].transform.position = position;
-                }
-
-                //Only enable collision if inspect is on:
-                particles[i].GetComponent<SphereCollider>().enabled = inspectToggle.isOn;
-
-
-                MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
-                if (p[i].pt == ParticleType.Cell)
-                {
-                    renderer.material = getMaterial(p[i].ct);
-                }
-                else if (p[i].pt == ParticleType.Pellet)
-                {
-                    renderer.material = mPellet;
-                }
-
-                i++;
+                particles[i].SendMessage("setParticle", p[i]);
             }
-            while (i < particles.Count)
+
+            MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
+            if (p[i].pt == ParticleType.Cell)
             {
-                Destroy(particles[i]);
-                particles.RemoveAt(i);
+                renderer.material = getMaterial(p[i].ct);
             }
+            else if (p[i].pt == ParticleType.Pellet)
+            {
+                renderer.material = mPellet;
+            }
+
+            i++;
+        }
+        while (i < particles.Count)
+        {
+            Destroy(particles[i]);
+            particles.RemoveAt(i);
         }
     }
 }

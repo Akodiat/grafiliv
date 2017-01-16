@@ -9,11 +9,11 @@ public class ParticleSelected : MonoBehaviour {
 
     private static GameObject infoBox;
 
-    private int organismId;
+    private Particle p;
 
-    void setOrgId(int o)
+    void setParticle(Particle p)
     {
-        organismId = o;
+        this.p = p;
     }
 
     // Use this for initialization
@@ -30,6 +30,9 @@ public class ParticleSelected : MonoBehaviour {
             Destroy(g);
         Instantiate(organismIndicator, this.transform.position, Quaternion.identity);
         //print(text.text);
-        text.text = "Organism ID: " + organismId;
+        text.text =
+            "Particle type: " + p.pt +
+            "\nCell type: " + p.ct +
+            "\nOrganism ID: " + p.o;
     }
 }
