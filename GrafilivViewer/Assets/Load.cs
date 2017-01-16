@@ -28,6 +28,8 @@ public class Load : MonoBehaviour {
 
     public Material mPellet;
 
+    public Toggle inspectToggle;
+
 
     [SerializeField]
     private InputField frameField;
@@ -139,6 +141,10 @@ public class Load : MonoBehaviour {
                 {
                     particles[i].transform.position = position;
                 }
+
+                //Only enable collision if inspect is on:
+                particles[i].GetComponent<SphereCollider>().enabled = inspectToggle.isOn;
+
 
                 MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
                 if (p[i].pt == ParticleType.Cell)
