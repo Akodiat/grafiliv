@@ -122,7 +122,7 @@ struct Particle {
     p.signal = 0.0f;                \
     p.alpha = 0.3f;                 \
     p.radius = 2.0f;                \
-    p.density = 10.0f; 	  				\
+    p.density = 10.0f;                  \
 }
 
 #define turnIntoBuffer(p) {         \
@@ -217,12 +217,12 @@ FUNC_EACH(boundary,
         if (p.r.z < 0)   p.f.z += WALL * (0 - p.r.z);
         if (p.r.z > W.x) p.f.z += WALL * (W.x - p.r.z);
         */
-        
+
         if (p.r.x < 0)   p.r.x = W.x;
         if (p.r.x > W.x) p.r.x = 0;
         if (p.r.z < 0)   p.r.z = W.z;
         if (p.r.z > W.x) p.r.z = 0;
-        
+
         if (p.particleType == Energy){
             if (p.r.y < 0) {
                 p.toBuffer = true;
@@ -316,10 +316,10 @@ FUNC_SURFACE(collideGround,
 if (p.particleType != Energy){
     if (dr > 1) dr = 1;
     p.f += WALL * u * dr;
-    
+
     /*xyz f = u * 50 * dr;
     p.f += f;
-    
+
     if (p3) f /= 3;
     else if (p2) f /= 2;
     if (p1) addVector(p1->f, -f);
@@ -433,7 +433,7 @@ int spawnOrganism(
 {
     Genome genome(*parentGenome);
     genome.mutate();
-    
+
     int nParticlesNeeded = genome.getMaxCellsReq();
     if (nParticlesNeeded > particleBuffer->unsafe_size()) {
         printf("Not enought particles in buffer\n");
@@ -453,7 +453,7 @@ int spawnOrganism(
     int organismID = currGenomeIndex++;
     vector<int> removedCells;
     vector<int> addedCells;
-    
+
     int nSensors = 0;
 
     for (int x = -br.x; x <= br.x; x++)
@@ -583,40 +583,6 @@ int initializeOrganism(Fluidix<> *fx, int pSet, concurrent_queue<int> *particleB
     return spawnOrganism(fx, pSet, origin, particleBuffer, p, &g, NULL, organisms);
 }
 
-void outputParticles(Particle *p, int nParticles, int step) {
-		char out_name[256];
-		sprintf(out_name, "output/frame%d.json", step);
-		
-		mkdir("output");
-		FILE *out = fopen(out_name, "wb");
-		if (!out) {
-			perror("Cannot open file: ");
-			QUIT("error opening output file %s\n", out_name);
-		}
-
-		fprintf(out, "{\"Items\":[\n");
-		bool first = true;
-		for (int i = 0; i < nParticles; i++) {
-			if(p[i].particleType == Cell) {
-				if(first){
-					first = false;
-				} else {
-					fprintf(out, ",");
-				}
-				fprintf(out,
-					//"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-					"{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
-					(int) p[i].particleType,
-					(int) p[i].type, 
-					p[i].organism,
-					p[i].r.x, p[i].r.y, p[i].r.z
-				);
-			}
-		}
-		fprintf(out, "]}");
-		fclose(out);
-	}
-
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int pSet = fx->createParticleSet(N);
@@ -697,12 +663,27 @@ int main() {
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
         fx->runEach(integrate(), pSet);
+
+        //Output:
+        FILE *out;
+        if (step % 10 == 0) {
+            char out_name[256];
+            sprintf(out_name, "output/frame%d.json", step);
+
+            mkdir("output");
+            out = fopen(out_name, "wb");
+            if (!out) {
+                perror("Cannot open file: ");
+                QUIT("error opening output file %s\n", out_name);
+            }
+        }
+
         //parallel_for (int(0), N, [&](int i)
         for (int i = 0; i<N; i++)
         {
             if (p[i].toBuffer) {
                 if (particleBuffer.unsafe_size() > BUFFER_SIZE) {
-                    turnIntoEnergy(p[i]);                  
+                    turnIntoEnergy(p[i]);
                 } else {
                     turnIntoBuffer(p[i]);
                     particleBuffer.push(i);
@@ -725,18 +706,29 @@ int main() {
                         fx->applyParticleArray(pSet);
                     }
                 }
+                if (step % 10 == 0) {
+                    fprintf(out,
+                        //"pt, ct, o, x, y, z"
+                        "%i,%i,%i,%f,%f,%f\n",
+                        (int) p[i].particleType,
+                        (int) p[i].type,
+                        p[i].organism,
+                        p[i].r.x, p[i].r.y, p[i].r.z
+                    );
+                }
             }
         }//);
+        fclose(out);
 
         //fx->applyParticleArray(pSet);
 
-        if (step % 10 == 0) {
+        if (step % 20 == 0) {
             printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("nReboots: %i\t", nReboots);
             printf("step %d\n", step);
-            if (currGenomeIndex - N_ORIGIN_ORGANISM - nReboots > 0)
-                outputParticles(p, N, step);
+            //if (currGenomeIndex - N_ORIGIN_ORGANISM - nReboots > 0)
+            //    outputParticles(p, N, step);
         }
 
         if (!g.nEggs) {
