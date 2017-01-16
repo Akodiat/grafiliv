@@ -24,6 +24,9 @@ public class Load : MonoBehaviour {
     public Material mLipocyte;
     public Material mSensor;
     public Material mEgg;
+    public Material mVascular;
+
+    public Material mPellet;
 
 
     [SerializeField]
@@ -52,6 +55,8 @@ public class Load : MonoBehaviour {
                 return mDevorocyte;
             case CellType.Egg:
                 return mEgg;
+            case CellType.Vascular:
+                return mVascular;
             default:
                 return null;
         }
@@ -86,6 +91,10 @@ public class Load : MonoBehaviour {
             if (p[i].pt == ParticleType.Cell)
             {
                 renderer.material = getMaterial(p[i].ct);
+            }
+            else if (p[i].pt == ParticleType.Pellet)
+            {
+                renderer.material = mPellet;
             }
             particles.Add(particle);
         }
@@ -135,6 +144,10 @@ public class Load : MonoBehaviour {
                 if (p[i].pt == ParticleType.Cell)
                 {
                     renderer.material = getMaterial(p[i].ct);
+                }
+                else if (p[i].pt == ParticleType.Pellet)
+                {
+                    renderer.material = mPellet;
                 }
 
                 i++;

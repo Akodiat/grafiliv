@@ -597,7 +597,7 @@ void outputParticles(Particle *p, int nParticles, int step) {
 		fprintf(out, "{\"Items\":[\n");
 		bool first = true;
 		for (int i = 0; i < nParticles; i++) {
-			if(p[i].particleType == Cell) {
+			if(p[i].particleType == Cell || p[i].particleType == Pellet) {
 				if(first){
 					first = false;
 				} else {
