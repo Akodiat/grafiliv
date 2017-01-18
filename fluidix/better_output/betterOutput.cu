@@ -122,7 +122,7 @@ struct Particle {
     p.signal = 0.0f;                \
     p.alpha = 0.3f;                 \
     p.radius = 2.0f;                \
-    p.density = 10.0f; 	  				\
+    p.density = 10.0f;                  \
 }
 
 #define turnIntoBuffer(p) {         \
@@ -144,7 +144,7 @@ FUNC_EACH(init,
 )
 
 FUNC_EACH(integrate,
-    p.v += p.f * DT; //Mass?
+    p.v += p.f * DT;
     p.r += p.v * DT;
     p.f = make_xyz(0, 0, 0);
     p.v *= 0.97f;
@@ -165,31 +165,12 @@ FUNC_EACH(handleEnergy,
             p.toBuffer = true;
         break;
     }
-    //p.color = mapf(p.energy, 0.0f, 3.0f, 0.0f, 1.0f);
 )
 
 FUNC_EACH(buoyancy,
-    //if (p.particleType == Cell && p.type == Ballast)
-    //    p.density = clamp(p.density + p.signal, 0.5f, 2.0f);
     float volume = p.radius * p.radius * PI;
     p.f.y += (p.density - FLUID_DENSITY) * G * volume;
 )
-/*
-FUNC_EACH(moveParticle,
-    if (p.particleType == Cell && p.type == Motor) {
-        xyz f = make_xyz(0, 0, 0);
-        if (p.links[Left]  < 0)  f.x += 1;
-        if (p.links[Up]    < 0)  f.y += 1;
-        if (p.links[Back]  < 0)  f.z += 1;
-        if (p.links[Right] < 0)  f.x -= 1;
-        if (p.links[Down]  < 0)  f.y -= 1;
-        if (p.links[Front] < 0)  f.z -= 1;
-        f = xyz_norm(f) * MOVE_FACTOR * clamp(p.signal, -1.0f, 1.0f);
-
-        addVector(p.f, f);
-    }
-)
-*/
 
 FUNC_EACH(reproduction,
     if (p.particleType == Cell && p.type == Egg)
@@ -236,10 +217,10 @@ FUNC_EACH(boundary,
     else if (p.r.y < -2 * W.y) p.r.y += W.y;
 )
 
-#define consumeParticle(a, b) {             \
+#define consumeParticle(a, b) {      \
     addFloat(a.energy, b.energy);    \
-    b.energy = 0;                           \
-    b.toBuffer = true;                      \
+    b.energy = 0;                    \
+    b.toBuffer = true;               \
 }
 
 FUNC_PAIR(particlePair,
@@ -263,10 +244,6 @@ FUNC_PAIR(particlePair,
                 if (neighbours) {
                     //Spring force between neighbours
                     f = -u * ((dr - (p1.radius + p2.radius)/2) * SPRING_K);
-
-                    //Signalling between cells of same organism
-                    //float meanSignal = (p1.signal + p2.signal) / 2;
-                    //p1.signal = p2.signal = meanSignal;
 
                     //Energy transmission
                     float p1Surplus = maxf(p1.energy - CELL_MIN_ENERGY, 0);
@@ -306,9 +283,6 @@ FUNC_PAIR(particlePair,
 
         addVector(p1.f, f);
         addVector(p2.f, -f);
-
-        //p1.color = p1.signal;
-        //p2.color = p2.signal;
     }
 )
 
@@ -584,38 +558,63 @@ int initializeOrganism(Fluidix<> *fx, int pSet, concurrent_queue<int> *particleB
 }
 
 void outputParticles(Particle *p, int nParticles, int step) {
-		char out_name[256];
-		sprintf(out_name, "output/frame%d.json", step);
-		
-		mkdir("output");
-		FILE *out = fopen(out_name, "wb");
-		if (!out) {
-			perror("Cannot open file: ");
-			QUIT("error opening output file %s\n", out_name);
-		}
+    char out_name[256];
+    sprintf(out_name, "output/frame%d.json", step);
+    
+    mkdir("output");
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file %s\n", out_name);
+    }
 
-		fprintf(out, "{\"Items\":[\n");
-		bool first = true;
-		for (int i = 0; i < nParticles; i++) {
-			if(p[i].particleType == Cell || p[i].particleType == Pellet) {
-				if(first){
-					first = false;
-				} else {
-					fprintf(out, ",");
-				}
-				fprintf(out,
-					//"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-					"{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
-					(int) p[i].particleType,
-					(int) p[i].type, 
-					p[i].organism,
-					p[i].r.x, p[i].r.y, p[i].r.z
-				);
-			}
-		}
-		fprintf(out, "]}");
-		fclose(out);
-	}
+    fprintf(out, "{\"Items\":[\n");
+    bool first = true;
+    for (int i = 0; i < nParticles; i++) {
+        if(p[i].particleType == Cell || p[i].particleType == Pellet) {
+            if(first){
+                first = false;
+            } else {
+                fprintf(out, ",");
+            }
+            fprintf(out,
+                //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
+                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
+                (int) p[i].particleType,
+                (int) p[i].type, 
+                p[i].organism,
+                p[i].r.x, p[i].r.y, p[i].r.z
+            );
+        }
+    }
+    fprintf(out, "]}");
+    fclose(out);
+}
+
+void outputOrganisms(organismMap organisms){
+    mkdir("output");
+    const char * out_name = "organisms.json";
+	
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file %s\n", out_name);
+    }
+    
+    fprintf(out, "{\n");
+    
+    bool first = true;
+    for (auto& iOrg : organisms) {
+        if(first) first = false;
+        else fprintf(out, "\n,");
+        
+        int i = iOrg.first;
+        Organism *o = &iOrg.second;
+        fprintf(out, o->genome.toJSON(i).c_str());
+    }
+	
+	fprintf(out, "}");
+}
 
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
@@ -738,6 +737,9 @@ int main() {
             if (currGenomeIndex - N_ORIGIN_ORGANISM - nReboots > 0)
                 outputParticles(p, N, step);
         }
+        
+        if(step % 100 == 0)
+            outputOrganisms(organisms);
 
         if (!g.nEggs) {
             printf("No eggs left, inserting new random organism\n");
