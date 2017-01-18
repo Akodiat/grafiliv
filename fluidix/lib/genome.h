@@ -267,7 +267,7 @@ public:
 		}
 	}
 	
-	string toJSON(int organismId) {
+	string toJSON() {
 		string vertices = "";
 		string links = "";
 		string weights = "";
@@ -301,10 +301,16 @@ public:
 		}
 		
 		return
-			string("\"")+to_string(organismId)+string("\":[") +
+			string("\"Genome\":[")   +
 			string("\"Vertices\":{") + vertices + string("},") +
 			string("\"Links\":{")    + links    + string("},") +
-			string("\"Weights\":{")  + weights  + string("}]");		
+			string("\"Weights\":{")  + weights  + string("},") +
+			string("\"Radius\":{")   +
+			(
+				to_string(boundingRadius.x) + "," +
+				to_string(boundingRadius.x) + "," +
+				to_string(boundingRadius.x) + "}]"
+			);
 	}
 	
 	void printMathematica() {

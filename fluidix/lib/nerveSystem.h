@@ -216,6 +216,45 @@ public:
 		if(rndNormal(rndGen) < MUTATION_PROB)
 			mutateAddNode();
 	}
+	
+	string toJSON() {
+		string vertices = "";
+		string links = "";
+		string weights = "";
+
+		bool first = true;
+		for(int i=0; i<nodes.size(); i++) {
+			if(first) first = false;
+			else vertices += ",";
+			
+			vertices += 
+				"{" +
+				to_string(i) + "," +
+				to_string(nodes[i].type) +
+				"}";
+		}
+		
+		first = true;
+		for(int i=0; i<connections.size(); i++) {
+			if(first) first = false;
+			else {
+				links += ",";
+				weights += ",";
+			}
+			
+			links +=
+				to_string(connections[i].in)  + ":" +
+				to_string(connections[i].out);
+			weights +=
+				to_string(connections[i].weight);
+		}
+		
+		return
+			string("\"NerveSystem\":[") +
+			string("\"Vertices\":{") + vertices + string("},") +
+			string("\"Links\":{")    + links    + string("},") +
+			string("\"Weights\":{")  + weights  + string("}]");
+	}
 
 	void printMathematica() {
 		string vertices = "";

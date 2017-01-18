@@ -71,7 +71,7 @@ int currGenomeIndex;
 
 struct Organism {
     Genome genome;
-    NerveSystem nervSystem;
+    NerveSystem nerveSystem;
     vector<int> cells;
 };
 
@@ -399,6 +399,26 @@ int getIdxFromCoord(int x, int y, int z, int3 br)
 }
 #define iFromCoord(x,y,z) cellBuff.at(getIdxFromCoord(x,y,z,br))
 
+void outputOrganism(Organism *o, int organismID){
+    mkdir("organisms");
+    char out_name[256];
+    sprintf(out_name, "organisms/org%d.json", organismID);
+	
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file %s\n", out_name);
+    }
+    
+    fprintf(out, "{\n");
+	fprintf(out, o->genome.toJSON().c_str());
+	fprintf(out, ",\n");
+	fprintf(out, o->nerveSystem.toJSON().c_str());	
+	fprintf(out, "\n}");
+	
+	fclose(out);
+}
+
 // Initialize new organism
 int spawnOrganism(
     Fluidix<> *fx, int particleSet,
@@ -477,7 +497,12 @@ int spawnOrganism(
         nervSys = NerveSystem(nSensors, 3);
 
     Organism organism = { genome, nervSys, addedCells };
+	
+	//Add organism to organism map
     organisms->emplace(organismID, organism);
+	
+	//Output organism to disk
+	outputOrganism(&organism, organismID);
 
     return organismID;
 }
@@ -591,31 +616,6 @@ void outputParticles(Particle *p, int nParticles, int step) {
     fclose(out);
 }
 
-void outputOrganisms(organismMap organisms){
-    mkdir("output");
-    const char * out_name = "organisms.json";
-	
-    FILE *out = fopen(out_name, "wb");
-    if (!out) {
-        perror("Cannot open file: ");
-        QUIT("error opening output file %s\n", out_name);
-    }
-    
-    fprintf(out, "{\n");
-    
-    bool first = true;
-    for (auto& iOrg : organisms) {
-        if(first) first = false;
-        else fprintf(out, "\n,");
-        
-        int i = iOrg.first;
-        Organism *o = &iOrg.second;
-        fprintf(out, o->genome.toJSON(i).c_str());
-    }
-	
-	fprintf(out, "}");
-}
-
 int main() {
     Fluidix<> *fx = new Fluidix<>(&g);
     int pSet = fx->createParticleSet(N);
@@ -680,7 +680,7 @@ int main() {
                 organismsToRemove.push_back(iOrg.first);
                 continue;
             }
-            vector<float> output = o->nervSystem.getOutput(inputs);
+            vector<float> output = o->nerveSystem.getOutput(inputs);
 
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
@@ -714,11 +714,11 @@ int main() {
                 if (p[i].type == Egg) { //&& p[i].toReproduce) {
                     //printf("Has %.2f, needs %.2f - ", p[i].energy, genomes[i].getMaxCellsReq() * CELL_INITIAL_ENERGY);
                     Genome g = organisms.at(p[i].organism).genome;
-                    NerveSystem ns = organisms.at(p[i].organism).nervSystem;
+                    NerveSystem ns = organisms.at(p[i].organism).nerveSystem;
                     if (g.getMaxCellsReq() * CELL_INITIAL_ENERGY <= p[i].energy) {
                         g.mutate();
                         int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &ns, &organisms);
-                        organisms.at(orgID).nervSystem.mutate();
+                        organisms.at(orgID).nerveSystem.mutate();
                         p[i].toReproduce = false;
                         p[i].toBuffer = true;
                         fx->applyParticleArray(pSet);
@@ -737,9 +737,6 @@ int main() {
             if (currGenomeIndex - N_ORIGIN_ORGANISM - nReboots > 0)
                 outputParticles(p, N, step);
         }
-        
-        if(step % 100 == 0)
-            outputOrganisms(organisms);
 
         if (!g.nEggs) {
             printf("No eggs left, inserting new random organism\n");
