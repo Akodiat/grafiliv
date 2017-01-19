@@ -2,44 +2,87 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.IO;
+
+public enum NodeType {Input, Hidden, Output};
+public enum ActivationFunction {
+	Sine, Abs, Id, Mod, Gaus
+};
 
 public class OrgInspector : MonoBehaviour {
 
     public GameObject nodePrefab;
     public GameObject canvas;
 
-    private Node node1;
-    private Node node2;
-    private Connection connection;
+    private List<Node> nodes = new List<Node>();
+    private List<Connection> connections = new List<Connection>();
+
+    private static int trimRadius = 25;
+    private static int springDistance = 100;
 
 	// Use this for initialization
 	void Start () {
-        node1 = new Node(Node.NodeType.Input, Node.ActivationFunction.Abs, nodePrefab, canvas);
-        node2 = new Node(Node.NodeType.Output, Node.ActivationFunction.Abs, nodePrefab, canvas);
+        /*
+        Node node1 = new Node(Node.NodeType.Input, Node.ActivationFunction.Abs, nodePrefab, canvas);
+        Node node2 = new Node(Node.NodeType.Output, Node.ActivationFunction.Abs, nodePrefab, canvas);
+        Node node3 = new Node(Node.NodeType.Output, Node.ActivationFunction.Abs, nodePrefab, canvas);
 
-        connection = new Connection(node1, node2, 3.0f);
+        nodes.Add(node1); nodes.Add(node2); nodes.Add(node2);
+
+        connections.Add(new Connection(node1, node2, 3.0f));
+        connections.Add(new Connection(node1, node3, 2.0f));
+        */
+        this.loadOrganism(0);
 	}
 	
 	// Update is called once per frame
 	void Update () {
 	}
 
+    void loadOrganism(int organismID)
+    {
+        nodes.Clear();
+        connections.Clear();
+
+        string line;
+        try
+        {
+            StreamReader sr = new StreamReader("organisms/org" + organismID + ".json");
+            line = sr.ReadToEnd();
+        }
+        catch (FileNotFoundException)
+        {
+            return;
+        }
+
+        print("File loaded: " + line);
+
+        Organism org = UnityEngine.JsonUtility.FromJson<Organism>(line);
+        print("Radius x: " + org.genome.radius[0]);
+
+        print("Weight of link 0: " + org.genome.weights[0]);
+
+        print(org.genome.links.Count + " links");
+        print(org.nervesystem.links.Count + " nerveLinks");
+    }
+
     void OnGUI() {
-        Drawing.DrawLine(
-            connection.getNode1().getPosition(),
-            connection.getNode2().getPosition(),
-            Color.black,
-            connection.getWeight()
-        );
+        foreach (Connection c in connections)
+        {
+            Vector2 p1 = c.getNode1().getPosition();
+            Vector2 p2 = c.getNode2().getPosition();
+            Vector2 dx = p2 - p1;
+            Drawing.DrawLine(
+                p1, //+ (dx.normalized * trimRadius),
+                p2, //- (dx.normalized * trimRadius),
+                Color.black,
+                c.getWeight()
+            );
+        }
     }
 
     private class Node
     {
-        public enum NodeType {Input, Hidden, Output};
-        public enum ActivationFunction {
-		    Sine, Abs, Id, Mod, Gaus
-	    };
-
         private GameObject gameObject;
         private NodeType type;
         private ActivationFunction activationFunction;
@@ -80,7 +123,7 @@ public class OrgInspector : MonoBehaviour {
 
             SpringJoint2D spring = node1.getGameObject().AddComponent<SpringJoint2D>();
             spring.connectedBody = node2.getGameObject().GetComponent<Rigidbody2D>();
-            spring.distance = 100;
+            spring.distance = springDistance;
         }
 
         public Node getNode1() { return node1; }
@@ -88,3 +131,49 @@ public class OrgInspector : MonoBehaviour {
         public float getWeight() { return weight; }
     }
 }
+
+[System.Serializable]
+public class Organism
+{
+    public Genome genome;
+    public NerveSystem nervesystem;
+}
+
+[System.Serializable]
+public struct Genome
+{
+    public List<GenomeVert> vertices;
+    public List<Link> links;
+    public List<float> weights;
+    public int[] radius;
+}
+
+[System.Serializable]
+public struct NerveSystem
+{
+    public List<NerveVert> vertices;
+    public List<Link> links;
+    public List<float> weights;
+}
+
+[System.Serializable]
+public struct Link
+{
+    public int i, o;
+}
+
+[System.Serializable]
+public struct GenomeVert
+{
+    public int i;
+    public NodeType type;
+    public ActivationFunction f;
+}
+
+[System.Serializable]
+public struct NerveVert
+{
+    public int i;
+    public NodeType type;
+}
+

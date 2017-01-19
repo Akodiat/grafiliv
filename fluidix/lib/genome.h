@@ -278,10 +278,12 @@ public:
 			else vertices += ",";
 			
 			vertices += 
-				"{" +
-				to_string(i) + "," +
-				to_string(nodes[i].type) + "," +
-				to_string(nodes[i].f) +
+				"{\"i\":" 					+
+				to_string(i) 				+
+				",\"type\":" 				+
+				to_string(nodes[i].type) 	+
+				",\"f\":" 					+
+				to_string(nodes[i].f) 		+
 				"}";
 		}
 		
@@ -294,22 +296,24 @@ public:
 			}
 			
 			links +=
-				to_string(connections[i].in)  + ":" +
-				to_string(connections[i].out);
+				"{\"i\":" +
+				to_string(connections[i].in)  + ",\"o\":" +
+				to_string(connections[i].out) + 
+				"}";
 			weights +=
 				to_string(connections[i].weight);
 		}
 		
 		return
-			string("\"Genome\":[")   +
-			string("\"Vertices\":{") + vertices + string("},") +
-			string("\"Links\":{")    + links    + string("},") +
-			string("\"Weights\":{")  + weights  + string("},") +
-			string("\"Radius\":{")   +
+			string("\"genome\":{")   +
+			string("\"vertices\":[") + vertices + string("],") +
+			string("\"links\":[")    + links    + string("],") +
+			string("\"weights\":[")  + weights  + string("],") +
+			string("\"radius\":[")   +
 			(
 				to_string(boundingRadius.x) + "," +
 				to_string(boundingRadius.x) + "," +
-				to_string(boundingRadius.x) + "}]"
+				to_string(boundingRadius.x) + "]}"
 			);
 	}
 	

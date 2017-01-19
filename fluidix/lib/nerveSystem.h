@@ -228,8 +228,9 @@ public:
 			else vertices += ",";
 			
 			vertices += 
-				"{" +
-				to_string(i) + "," +
+				"{\"i\":" 				 +
+				to_string(i) 			 +
+				",\"type\":" 			 +
 				to_string(nodes[i].type) +
 				"}";
 		}
@@ -243,17 +244,19 @@ public:
 			}
 			
 			links +=
-				to_string(connections[i].in)  + ":" +
-				to_string(connections[i].out);
+				"{\"i\":" +
+				to_string(connections[i].in)  + ",\"o\":" +
+				to_string(connections[i].out) + 
+				"}";
 			weights +=
 				to_string(connections[i].weight);
 		}
 		
 		return
-			string("\"NerveSystem\":[") +
-			string("\"Vertices\":{") + vertices + string("},") +
-			string("\"Links\":{")    + links    + string("},") +
-			string("\"Weights\":{")  + weights  + string("}]");
+			string("\"nervesystem\":{") +
+			string("\"vertices\":[")    + vertices + string("],") +
+			string("\"links\":[")       + links    + string("],") +
+			string("\"weights\":[")     + weights  + string("]}");
 	}
 
 	void printMathematica() {
