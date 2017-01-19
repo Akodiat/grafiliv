@@ -1,7 +1,9 @@
 #include "fluidix.h"
+#include "../lib/genome.h"
+#include <map>
 
-#define W 100 // world size (cube)
-#define N 1000 // number of particles
+#define W 500 // world size (cube)
+#define N 500 // number of particles
 #define STEPS 100000 // number of simulation steps
 #define DT 0.01f // integration time-step
 #define RANGE 4.0f // fluid interaction cutoff range
@@ -12,30 +14,15 @@
 #define ATTRACTION_FORCE 40
 
 
-#define PHOTOSYNTHESIS_MAX 0.1f
+#define PHOTOSYNTHESIS_MAX 1.0f
 #define CELL_BASIC_METABOLISM 0.3f
-#define CELL_BASIC_ENERGY 0.1f
+#define CELL_BASIC_ENERGY 2.0f
 #define CELL_MAX_ENERGY 1.0f
-#define CELL_INITIAL_ENERGY 1.0f
+#define CELL_INITIAL_ENERGY 4000.0f
 
 #define MUTATION_RATE 0.01f
 
 #define G -9.81f
-
-#define RESURRECT(parent, child) {																							\
-	child.energy 					= parent.energy/2;																			\
-	parent.energy 				= parent.energy/2;																			\
-	child.alpha 					= 1.0f;																						\
-	child.remove 					= false;																						\
-	child.radius 					= (child.energy + CELL_BASIC_ENERGY)/2;													\
-	child.invertSignal 			= rnd_uniform() > MUTATION_RATE ? parent.invertSignal : !parent.invertSignal;	\
-	child.density 				= parent.density;																			\
-	child.phoSyAbility 			= parent.phoSyAbility 		+ rnd_normal() * MUTATION_RATE;							\
-	child.moveAbility 			= parent.moveAbility 		+ rnd_normal() * MUTATION_RATE;							\
-	child.senseAbility 			= parent.senseAbility 		+ rnd_normal() * MUTATION_RATE;							\
-	child.recieveSigAbility		= parent.recieveSigAbility	+ rnd_normal() * MUTATION_RATE;							\
-	child.sendSigAbility 		= parent.sendSigAbility 	+ rnd_normal() * MUTATION_RATE;							\
-}
 
 struct Particle {
 	xyz r, v, f; 				// position, velocity, force
@@ -47,13 +34,14 @@ struct Particle {
 	float color; 				// display color
 	float alpha;
 	bool remove;
+	bool divide;
+	int linkSet;
+	int origin;
 
 	//Genome:
-
 	float phoSyAbility; 		// Ability to photosynthesize
 	float moveAbility;			// Ability to move
 	float senseAbility;			// Ability to sense surroundings
-
 	bool  invertSignal;			// Inverts signal before acting or transmitting
 	float recieveSigAbility;  	// Ability to recieve signals	
 	float sendSigAbility;		// Ability to send signals
@@ -65,32 +53,18 @@ struct Node {
 };
 
 struct Global {
-	//Node *head;
 } g;
-
-/*
-#define add_toDivide(val){Node *node = new Node(); node->x = val; node->next = g.head; g.head = node;}
-
-void next_toDivide(){
-    Node *n = g.head;
-    g.head = g.head->next;
-    delete n;
-}
-bool has_toDivide() {
-	return g.head != NULL;
-}
-*/
 
 // initialize particles
 FUNC_EACH(init,
 
 	p.energy = CELL_INITIAL_ENERGY;
 	p.r = make_xyz_uniform() * W; 					//Random position within box
-	//p.radius = rnd_uniform(); 						//Random size
-	p.radius = (p.energy + CELL_BASIC_ENERGY)/2;
+	p.radius = 1.0f; //(p.energy + CELL_BASIC_ENERGY)/2;
 	p.density = FLUID_DENSITY; // abs(rnd_normal() / 10 + FLUID_DENSITY); 	//Random density
 	p.alpha = 1.0f;
-	p.remove = false;
+	p.remove = false;	
+	p.divide = false;
 	
 	p.invertSignal 		= rnd_uniform() < 0.5f;
 	p.phoSyAbility 		= 0.0f; // abs(rnd_normal());
@@ -106,11 +80,12 @@ FUNC_EACH(init,
 )
 
 // linear repulsion + attraction at distance
-FUNC_PAIR(pair,
+FUNC_PAIR(particlePair,
 	float ratio = dr / range;
-	float interactivity =  (p1.recieveSigAbility * p2.sendSigAbility * p2.recieveSigAbility * p1.sendSigAbility);
-
-	xyz f = u * (REPULSION_FORCE * (1-ratio) * interactivity - ATTRACTION_FORCE * ratio );
+	float attraction = 0.0f;
+	if(p1.linkSet == p2.linkSet)
+		attraction = ATTRACTION_FORCE * ratio;
+	xyz f = u * (REPULSION_FORCE * (1-ratio) - attraction);
 	addVector(p1.f, f);
 	addVector(p2.f, -f);
 
@@ -126,25 +101,27 @@ FUNC_PAIR(pair,
 	addVector(p1.signal, p2.signal * p1.recieveSigAbility * p2.sendSigAbility * (p1.invertSignal ? -1 : 1));
 	addVector(p2.signal, p1.signal * p2.recieveSigAbility * p1.sendSigAbility * (p2.invertSignal ? -1 : 1));
 
+	// p1 consumes p2
 	if(p1.energy > 0 && p2.energy <= 0){
-		RESURRECT(p1, p2);
-		//p2.remove = true;
-		//addFloat(p1.energy, CELL_BASIC_ENERGY);
+		p2.remove = true;
+		addFloat(p1.energy, CELL_BASIC_ENERGY);
 	}
+	// p2 consumes p1
 	else if (p2.energy > 0 && p1.energy <= 0) {
-		RESURRECT(p2, p1);
-		//p1.remove = true;
-		//addFloat(p2.energy, CELL_BASIC_ENERGY);
+		p1.remove = true;
+		addFloat(p2.energy, CELL_BASIC_ENERGY);
 	}
+/*
 	else {
 		//Steal energy from other particle proportional to signal alignment with particle direction
 		addFloat(p1.energy, xyz_len(xyz_norm(p1.signal) + (-u)) - xyz_len(xyz_norm(p2.signal) + (u)));
 		addFloat(p2.energy, xyz_len(xyz_norm(p2.signal) + (u)) - xyz_len(xyz_norm(p1.signal) + (-u)));
 		//addFloat(p1.energy, p2.energy/2 - p1.energy/2);
 		//addFloat(p2.energy, p1.energy/2 - p2.energy/2);
-	} 
-)
+	}
+*/
 
+)
 
 // buoyancy 
 FUNC_EACH(buoyancy,
@@ -166,8 +143,8 @@ FUNC_EACH(move,
 // handle energy usage
 FUNC_EACH(handleEnergy,
 	p.energy -= (
-		p.moveAbility +
 		CELL_BASIC_METABOLISM +
+		p.moveAbility +
 		p.senseAbility
 	);
 
@@ -178,13 +155,12 @@ FUNC_EACH(handleEnergy,
 		p.density = FLUID_DENSITY;
 		p.phoSyAbility = p.moveAbility = p.senseAbility = p.recieveSigAbility = p.sendSigAbility = 0.0f;
 	}
+	// If there is enought energy to divide
 	if(p.energy > CELL_MAX_ENERGY){
-		p.energy = CELL_MAX_ENERGY;
-		//p.energy /= 2;
-		//add_toDivide(p_index);
+		p.divide = true;
 	}
 
-	p.radius = (p.energy + CELL_BASIC_ENERGY)/2;
+	//p.radius = (p.energy + CELL_BASIC_ENERGY)/2;
 )
 
 // Euler integration
@@ -214,33 +190,112 @@ FUNC_EACH(deflateSignals,
 	p.sense = make_xyz(0, 0, 0);
 )
 
-// simulation
 int main(int argc, char **argv) {
 	Fluidix<> *fx = new Fluidix<>(&g);
 
-	int A = fx->createParticleSet(N);
+	map<int, Genome> genomes;
+
+	int A = fx->createParticleSet(10);
 	fx->runEach(init(), A);
+	
+	Particle *pArray = fx->getParticleArray(A);
+	for (int step = 0; step < 5000; step++) {
+		
+		Particle *p = fx->getParticleArray(A);
+		int n = fx->getParticleCount(A);
+		for (int i = 0; i < n; i++) {
+			if (p[i].remove == true)
+			{
+				//printf("Removing particle (%d)\n", i);
+/*				memcpy(&p[i], &p[n-1], sizeof(Particle)); 	// replace current with last
+				fx->applyParticleArray(A); 					// apply changes before any operation
+				fx->resizeParticleSet(A, --n); 				// delete the last particle and decrease n
+				Particle *p = fx->getParticleArray(A);
+*/			}
+			else if (p[i].divide == true)
+			{
+				//printf("Dividing particle (%d)\n", i);
+				
+				// If this is the origin cell
+				if(p[i].linkSet == -1) {
+					p[i].linkSet = fx->createLinkSet();
 
-	for (int i = 0; i < STEPS; i++) {
-		printf("step %d / %d: ", i, STEPS);
-		fx->setTimer();
+					int inputs = 4;
+					int outputs = 3;
 
-		// execute interactions
-		fx->runPair(pair(), A, A, RANGE);
-		fx->runEach(buoyancy(), A);
-		fx->runEach(move(), A);
+					Genome g(inputs, outputs);
+
+					g.mutate();
+					g.mutate();
+					g.mutate();
+					g.mutate();
+
+					g.printMathematica();
+
+					genomes.insert({p[i].linkSet,	g});
+
+					vector<float> input(inputs, 0.0f);
+					vector<float> output = g.getOutput(input);
+	
+					p[i].color = output[0];
+					p[i].density = output[1];
+					p[i].remove = output[2]<=0;
+				}
+
+				p[i].divide = false;
+				p[i].energy -= 0.1f;
+				p[i].energy /= 2;
+				fx->applyParticleArray(A); 
+				fx->resizeParticleSet(A, ++n); 				// add a new particle and increase n
+				Particle *p = fx->getParticleArray(A);
+
+				memcpy(&p[n-1], &p[i], sizeof(Particle)); 	// copy current to last
+
+				// Displace particles from each other
+				xyz dr = xyz_norm(make_xyz_uniform()) * p[i].radius;		
+				p[i].r 	-= dr;
+				p[n-1].r 	+= dr;
+
+				//Create link between new particle and origin
+				//fx->addLink(p[n-1].linkSet, A, p[n-1].origin, A, n-1);
+				printf("parent link set: %i\tchild link set: %i\t",p[i].linkSet, p[n-1].linkSet);
+				fx->addLink(p[n-1].linkSet, A, i, A, n-1);
+
+				Genome genome = genomes.at(p[n-1].linkSet);
+
+				dr = p[n-1].r - p[p[n-1].origin].r;
+
+				vector<float> input;
+				input.push_back(dr.x);
+				input.push_back(dr.y);
+				input.push_back(dr.z);
+				input.push_back(xyz_len(dr));
+
+				vector<float> output = genome.getOutput(input);
+
+				printf("input: ");  for(float i : input)  printf("%.2f ",i); printf("\t");
+				printf("output: "); for(float o : output) printf("%.2f ",o); printf("\n");
+
+				p[n-1].color = output[0];
+				p[n-1].density = output[1];
+				p[n-1].remove = output[2]<=0;
+	
+				fx->applyParticleArray(A); 					// apply changes before any operation
+			}
+		}
+		//printf("number of particles: %d\n", n);
+
+		fx->runPair(particlePair(), A, A, RANGE);
 		fx->runEach(integrate(), A);
-		fx->runEach(handleEnergy(), A);
+		fx->runEach(buoyancy(), A);
+		//fx->runEach(photosynthesis(), A);	
+		//fx->runEach(friction(), A);
 		fx->runEach(boundary(), A);
-		fx->runEach(deflateSignals(), A);
-		fx->runEach(photosynthesis(), A);
 
-		fx->removeParticles(A);
-
-		printf("%.1f ms\n", fx->getTimer());
-
-		// only output to file every 10th step
-		if (i % 1 == 0) fx->outputFrame("output");
+		if (step % 1 == 0) {
+			//printf("step %d\n", step);
+			fx->outputFrame("output");
+		}
 	}
 
 	delete fx;

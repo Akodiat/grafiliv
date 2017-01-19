@@ -7,8 +7,8 @@
 #define CELL_LIFETIME 20.0f
 #define PELLET_LIFETIME 100.0f
 
-#define W 200
-#define N 30000
+#define W 300
+#define N 50000
 #define N_ORIGIN_CELLS 500
 #define N_STEPS 1000000
 
@@ -260,7 +260,11 @@ void initializeNewOrganism(Particle *cell) {
 	cell->genome.mutate();
 
 	cell->organism	= currGenomeIndex++;
-	cell->r			= make_xyz_uniform() * W;
+	cell->r			= make_xyz(
+		rnd_uniform() * W,
+      rnd_uniform() * W, // * 0.2f + 0.8f,
+		rnd_uniform() * W
+	);
 	cell->origin		= cell;
 	cell->reproduce	= false;
 	setDefaultCellValues(cell);
@@ -313,7 +317,7 @@ void growCell(Particle *parent, Particle *child) {
 	input.push_back(dr.z);
 	input.push_back(xyz_len(dr));
 
-	//child->genome.mutate();
+	child->genome.mutate();
 
 	vector<float> output = child->genome.getOutput(input);
 
@@ -368,7 +372,7 @@ int main() {
 
 		if (step % 10 == 0) {
 			printf("step %d\n", step);
-			fx->outputFrame("output");
+			fx->outputFrame("output2");
 		}
 	}
 

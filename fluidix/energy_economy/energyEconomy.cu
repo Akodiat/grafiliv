@@ -9,7 +9,7 @@
 #define CELL_INITIAL_ENERGY 100.0f
 #define PELLET_LIFETIME 5.0f
 
-#define W 300
+#define W 200
 #define N 100000
 #define N_ORIGIN_CELLS 2000
 #define N_INITIAL_BUFFER 100
@@ -107,7 +107,7 @@ struct Particle {
     p.energy = ENERGY_PARTICLE_ENERGY; \
     p.alpha = 0.3f;                 \
     p.radius = 0.5f;                \
-    p.density = FLUID_DENSITY * 20; \
+    p.density = FLUID_DENSITY * 3;  \
 }
 
 #define turnIntoBuffer(p) {        \
@@ -220,11 +220,12 @@ FUNC_EACH(springToParent,
         addVector(p.f, f);
         //addVector(p.parent->f, -f);
     }
-)
+    )
 
-#define consumeParticle(a, b) {     \
-    addFloat(a.energy, b.energy * 0.9f);   \
-    b.toBuffer = true;             \
+#define consumeParticle(a, b) {             \
+    addFloat(a.energy, b.energy * 0.9f);    \
+    b.energy = 0;                           \
+    b.toBuffer = true;                      \
 }
 
 FUNC_PAIR(particlePair,
