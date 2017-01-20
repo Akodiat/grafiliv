@@ -13,12 +13,13 @@ public class OrgInspector : MonoBehaviour {
 
     public GameObject nodePrefab;
     public GameObject canvas;
+    public Texture2D point;
 
     private List<Node> nodes = new List<Node>();
     private List<Connection> connections = new List<Connection>();
 
     private static int trimRadius = 25;
-    private static int springDistance = 100;
+    private static int springDistance = 200;
 
 	// Use this for initialization
 	void Start () {
@@ -55,30 +56,54 @@ public class OrgInspector : MonoBehaviour {
             return;
         }
 
-        print("File loaded: " + line);
-
         Organism org = UnityEngine.JsonUtility.FromJson<Organism>(line);
-        print("Radius x: " + org.genome.radius[0]);
 
-        print("Weight of link 0: " + org.genome.weights[0]);
-
-        print(org.genome.links.Count + " links");
-        print(org.nervesystem.links.Count + " nerveLinks");
+        foreach (var v in org.genome.vertices)
+        {
+            Node node = new Node(v.type, v.f, nodePrefab, canvas);
+            nodes.Add(node);
+        }
+        for(int i=0; i < org.genome.links.Count; i++)
+        {
+            var c = org.genome.links[i];
+            if (c.i == c.o) continue; //Ignore self connections at the moment
+            float w = org.genome.weights[i];
+            connections.Add(new Connection(nodes[c.i], nodes[c.o], w));
+        }
     }
 
     void OnGUI() {
+        if (Event.current == null)
+            return;
+
+        if (Event.current.type != EventType.repaint)
+            return;
         foreach (Connection c in connections)
         {
             Vector2 p1 = c.getNode1().getPosition();
             Vector2 p2 = c.getNode2().getPosition();
             Vector2 dx = p2 - p1;
-            Drawing.DrawLine(
-                p1, //+ (dx.normalized * trimRadius),
-                p2, //- (dx.normalized * trimRadius),
-                Color.black,
-                c.getWeight()
+            DrawLine(
+                p1 + (dx.normalized * trimRadius),
+                p2 - (dx.normalized * trimRadius),
+                //Color.black,
+                (int) (10 * c.getWeight())
             );
         }
+    }
+
+    private void DrawLine(Vector2 start, Vector2 end, int width)
+    {
+        Vector2 d = end - start;
+        float a = Mathf.Rad2Deg * Mathf.Atan(d.y / d.x);
+        if (d.x < 0)
+            a += 180;
+
+        int width2 = (int)Mathf.Ceil(width / 2);
+
+        GUIUtility.RotateAroundPivot(a, start);
+        GUI.DrawTexture(new Rect(start.x, start.y - width2, d.magnitude, width), point);
+        GUIUtility.RotateAroundPivot(-a, start);
     }
 
     private class Node
@@ -92,6 +117,15 @@ public class OrgInspector : MonoBehaviour {
             GameObject o = Instantiate(nodePrefab) as GameObject;
             o.transform.SetParent(canvas.transform);
             o.transform.position = new Vector3(500 + Random.value, 500 + Random.value);
+            Color color;
+            switch (type)
+            {
+                case NodeType.Input: color = Color.blue; break;
+                case NodeType.Hidden: color = Color.gray; break;
+                case NodeType.Output: color = Color.green; break;
+                default: color = Color.black; break;
+            }
+            o.GetComponent<Image>().color = color;
             
             this.gameObject = o;
             this.type = type;
@@ -100,7 +134,11 @@ public class OrgInspector : MonoBehaviour {
 
         public Vector2 getPosition()
         {
-            Vector2 pos = gameObject.GetComponent<Rigidbody2D>().position;
+            //Vector2 pos = gameObject.GetComponent<Rigidbody2D>().position;
+            Vector2 pos = new Vector2(
+                gameObject.transform.position.x,
+                gameObject.transform.position.y
+            );
             pos.y = Screen.height - pos.y;
             return pos;
         }
