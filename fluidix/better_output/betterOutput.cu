@@ -73,6 +73,7 @@ struct Organism {
     Genome genome;
     NerveSystem nerveSystem;
     vector<int> cells;
+	int parent;
 };
 
 typedef std::unordered_map<int, Organism> organismMap;
@@ -413,7 +414,9 @@ void outputOrganism(Organism *o, int organismID){
     fprintf(out, "{\n");
 	fprintf(out, o->genome.toJSON().c_str());
 	fprintf(out, ",\n");
-	fprintf(out, o->nerveSystem.toJSON().c_str());	
+	fprintf(out, o->nerveSystem.toJSON().c_str());
+	fprintf(out, ",\n\"parent\": ");
+	fprintf(out, to_string(o->parent).c_str());
 	fprintf(out, "\n}");
 	
 	fclose(out);
@@ -423,9 +426,24 @@ void outputOrganism(Organism *o, int organismID){
 int spawnOrganism(
     Fluidix<> *fx, int particleSet,
     xyz origin, concurrent_queue<int> *particleBuffer,
-    Particle *p, Genome *parentGenome, NerveSystem *parentNerves, organismMap *organisms)
+    Particle *p, int parent, organismMap *organisms)
 {
-    Genome genome(*parentGenome);
+	Genome genome;
+	
+	if(parent == -1){
+		int3 gridDim = INITIAL_ORGANISM_DIMENSIONS; //genomes[iOrigin].gridDim;
+
+		// Define number of in- and outputs
+		int inputs = N_INPUTS;              // X, Y, Z, Dist
+		int nonCelltypeOutputs = 2;         // Growth prob
+		int outputs = N_CELL_TYPES + nonCelltypeOutputs;
+		genome = Genome(inputs, outputs, gridDim);
+		//g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
+	}
+	else {
+		genome = Genome(organisms->at(parent).genome);
+	}
+
     genome.mutate();
     
     int nParticlesNeeded = genome.getMaxCellsReq();
@@ -489,14 +507,16 @@ int spawnOrganism(
     printf("nSensors: %i\n", nSensors);
 
     NerveSystem nervSys;
-    if (parentNerves != nullptr){
-        nervSys = NerveSystem(*parentNerves);
-        nervSys.updateInputs(nSensors);
-        nervSys.mutate();
-    } else
+    if (parent == -1){
         nervSys = NerveSystem(nSensors, 3);
-
-    Organism organism = { genome, nervSys, addedCells };
+    } else {
+        nervSys = NerveSystem(organisms->at(parent).nerveSystem);
+        nervSys.updateInputs(nSensors);
+	}
+	
+	nervSys.mutate();
+	
+    Organism organism = { genome, nervSys, addedCells, parent };
 	
 	//Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -567,19 +587,11 @@ int generateTerrain(Fluidix<> *fx){
 
 int initializeOrganism(Fluidix<> *fx, int pSet, concurrent_queue<int> *particleBuffer, Particle *p, organismMap *organisms)
 {
-    int3 gridDim = INITIAL_ORGANISM_DIMENSIONS; //genomes[iOrigin].gridDim;
-
-    // Define number of in- and outputs
-    int inputs = N_INPUTS;              // X, Y, Z, Dist
-    int nonCelltypeOutputs = 2;         // Growth prob
-    int outputs = N_CELL_TYPES + nonCelltypeOutputs;
-    Genome g = Genome(inputs, outputs, gridDim);
-    g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
     xyz origin = make_xyz_uniform() * int3_to_xyz(W);
     origin.y /= 2;
     origin.y += W.y / 2;
 
-    return spawnOrganism(fx, pSet, origin, particleBuffer, p, &g, NULL, organisms);
+    return spawnOrganism(fx, pSet, origin, particleBuffer, p, -1, organisms);
 }
 
 void outputParticles(Particle *p, int nParticles, int step) {
@@ -604,10 +616,11 @@ void outputParticles(Particle *p, int nParticles, int step) {
             }
             fprintf(out,
                 //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"x\":%f,\"y\":%f,\"z\":%f}\n",
+                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
                 (int) p[i].particleType,
                 (int) p[i].type, 
-                p[i].organism,
+                p[i].organism, 
+                p[i].energy,
                 p[i].r.x, p[i].r.y, p[i].r.z
             );
         }
@@ -714,11 +727,9 @@ int main() {
                 if (p[i].type == Egg) { //&& p[i].toReproduce) {
                     //printf("Has %.2f, needs %.2f - ", p[i].energy, genomes[i].getMaxCellsReq() * CELL_INITIAL_ENERGY);
                     Genome g = organisms.at(p[i].organism).genome;
-                    NerveSystem ns = organisms.at(p[i].organism).nerveSystem;
                     if (g.getMaxCellsReq() * CELL_INITIAL_ENERGY <= p[i].energy) {
-                        g.mutate();
-                        int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, &g, &ns, &organisms);
-                        organisms.at(orgID).nerveSystem.mutate();
+                        int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, p[i].organism, &organisms);
+                        //organisms.at(orgID).nerveSystem.mutate();
                         p[i].toReproduce = false;
                         p[i].toBuffer = true;
                         fx->applyParticleArray(pSet);

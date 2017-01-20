@@ -8,6 +8,7 @@ public class ParticleSelected : MonoBehaviour {
     public GameObject organismIndicator;
 
     private static GameObject infoBox;
+    private static GameObject organismInspector;
 
     private Particle p;
 
@@ -20,6 +21,7 @@ public class ParticleSelected : MonoBehaviour {
     void Start()
     {
         infoBox = GameObject.Find("Infobox");
+        organismInspector = GameObject.Find("OrganismInspector");
     }
 
     void OnMouseDown()
@@ -33,6 +35,8 @@ public class ParticleSelected : MonoBehaviour {
         text.text =
             "Particle type: " + p.pt +
             "\nCell type: " + p.ct +
-            "\nOrganism ID: " + p.o;
+            "\nOrganism ID: " + p.o +
+            "\nEnergy: " + p.e;
+        organismInspector.SendMessage("loadOrganism", p.o);
     }
 }

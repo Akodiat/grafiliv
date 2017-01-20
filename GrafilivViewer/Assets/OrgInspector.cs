@@ -19,7 +19,7 @@ public class OrgInspector : MonoBehaviour {
     private List<Connection> connections = new List<Connection>();
 
     private static int trimRadius = 25;
-    private static int springDistance = 200;
+    private static int springDistance = 300;
 
 	// Use this for initialization
 	void Start () {
@@ -33,17 +33,25 @@ public class OrgInspector : MonoBehaviour {
         connections.Add(new Connection(node1, node2, 3.0f));
         connections.Add(new Connection(node1, node3, 2.0f));
         */
-        this.loadOrganism(0);
+        //this.loadOrganism(0);
 	}
 	
 	// Update is called once per frame
 	void Update () {
 	}
 
-    void loadOrganism(int organismID)
+    //Remove old nodes and connections
+    public void unloadOrganism()
     {
+        foreach (Node node in nodes)
+            Destroy(node.getGameObject());
         nodes.Clear();
         connections.Clear();
+    }
+
+    void loadOrganism(int organismID)
+    {
+        unloadOrganism();
 
         string line;
         try
@@ -58,9 +66,10 @@ public class OrgInspector : MonoBehaviour {
 
         Organism org = UnityEngine.JsonUtility.FromJson<Organism>(line);
 
-        foreach (var v in org.genome.vertices)
+        for (int i = 0; i < org.genome.vertices.Count; i++)
         {
-            Node node = new Node(v.type, v.f, nodePrefab, canvas);
+            var v = org.genome.vertices[i];
+            Node node = new Node(i, v.type, v.f, nodePrefab, canvas);
             nodes.Add(node);
         }
         for(int i=0; i < org.genome.links.Count; i++)
@@ -86,7 +95,6 @@ public class OrgInspector : MonoBehaviour {
             DrawLine(
                 p1 + (dx.normalized * trimRadius),
                 p2 - (dx.normalized * trimRadius),
-                //Color.black,
                 (int) (10 * c.getWeight())
             );
         }
@@ -111,22 +119,38 @@ public class OrgInspector : MonoBehaviour {
         private GameObject gameObject;
         private NodeType type;
         private ActivationFunction activationFunction;
+        private int id;
 
-        public Node(NodeType type, ActivationFunction f, GameObject nodePrefab, GameObject canvas)
+        public Node(int id, NodeType type, ActivationFunction f, GameObject nodePrefab, GameObject canvas)
         {
             GameObject o = Instantiate(nodePrefab) as GameObject;
             o.transform.SetParent(canvas.transform);
-            o.transform.position = new Vector3(500 + Random.value, 500 + Random.value);
             Color color;
+
+            float x = 500 + id*10;
+            float y;
             switch (type)
             {
-                case NodeType.Input: color = Color.blue; break;
-                case NodeType.Hidden: color = Color.gray; break;
-                case NodeType.Output: color = Color.green; break;
-                default: color = Color.black; break;
+                case NodeType.Input:
+                    color = Color.blue;
+                    y = 800;
+                    break;
+                case NodeType.Hidden:
+                    color = Color.gray;
+                    y = 500;
+                    break;
+                case NodeType.Output:
+                    color = Color.green;
+                    y = 200;
+                    break;
+                default: color = Color.black;
+                    y = 500;
+                    break;
             }
             o.GetComponent<Image>().color = color;
-            
+            o.transform.position = new Vector3(x, y);
+
+            this.id = id;
             this.gameObject = o;
             this.type = type;
             this.activationFunction = f;
@@ -134,11 +158,7 @@ public class OrgInspector : MonoBehaviour {
 
         public Vector2 getPosition()
         {
-            //Vector2 pos = gameObject.GetComponent<Rigidbody2D>().position;
-            Vector2 pos = new Vector2(
-                gameObject.transform.position.x,
-                gameObject.transform.position.y
-            );
+            Vector2 pos = gameObject.GetComponent<Rigidbody2D>().position;
             pos.y = Screen.height - pos.y;
             return pos;
         }
@@ -175,6 +195,7 @@ public class Organism
 {
     public Genome genome;
     public NerveSystem nervesystem;
+    public int parent;
 }
 
 [System.Serializable]

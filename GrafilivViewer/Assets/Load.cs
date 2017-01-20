@@ -207,6 +207,7 @@ public class Particle
     public ParticleType pt;
     public CellType ct;
     public int o;
+    public float e;
     public float x;
     public float y;
     public float z;
