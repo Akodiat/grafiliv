@@ -98,7 +98,6 @@ struct Particle {
     float signal;
     int organism;
     bool toBuffer;
-    bool toReproduce;
     int links[6];
     CellType type;
 };
@@ -171,14 +170,6 @@ FUNC_EACH(handleEnergy,
 FUNC_EACH(buoyancy,
     float volume = p.radius * p.radius * PI;
     p.f.y += (p.density - FLUID_DENSITY) * G * volume;
-)
-
-FUNC_EACH(reproduction,
-    if (p.particleType == Cell && p.type == Egg)
-        if (p.energy >= p.maxEnergy){
-            p.toReproduce = true;
-            printf("toReproduce!!!\n");
-        }
 )
 
 
@@ -474,7 +465,6 @@ int spawnOrganism(
         Particle *cell = &p[iFromCoord(x, y, z)];
         cell->organism = organismID;
         cell->r = origin + make_xyz(x, y, z);
-        cell->toReproduce = false;
         cell->energy = CELL_INITIAL_ENERGY;
         setDefaultCellValues(cell);
 
@@ -503,8 +493,6 @@ int spawnOrganism(
     }
     for (int i : removedCells)
         emptyCellPos(p, i);
-
-    printf("nSensors: %i\n", nSensors);
 
     NerveSystem nervSys;
     if (parent == -1){
@@ -724,14 +712,11 @@ int main() {
             }
             if (p[i].particleType == Cell) {
                 // Create offspring:
-                if (p[i].type == Egg) { //&& p[i].toReproduce) {
-                    //printf("Has %.2f, needs %.2f - ", p[i].energy, genomes[i].getMaxCellsReq() * CELL_INITIAL_ENERGY);
-                    Genome g = organisms.at(p[i].organism).genome;
-                    if (g.getMaxCellsReq() * CELL_INITIAL_ENERGY <= p[i].energy) {
+                if (p[i].type == Egg) {
+                    int maxCellReq = organisms.at(p[i].organism).genome.getMaxCellsReq();
+                    if (maxCellReq * CELL_INITIAL_ENERGY <= p[i].energy - CELL_INITIAL_ENERGY) {
                         int orgID = spawnOrganism(fx, pSet, p[i].r, &particleBuffer, p, p[i].organism, &organisms);
-                        //organisms.at(orgID).nerveSystem.mutate();
-                        p[i].toReproduce = false;
-                        p[i].toBuffer = true;
+						p[i].energy -= maxCellReq * CELL_INITIAL_ENERGY;
                         fx->applyParticleArray(pSet);
                     }
                 }
@@ -740,7 +725,8 @@ int main() {
 
         //fx->applyParticleArray(pSet);
 
-        if (step % 10 == 0) {
+        if ((step % 10 == 0 && step > 1000000)
+			|| step % 10000 == 0) {
             printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("nReboots: %i\t", nReboots);
