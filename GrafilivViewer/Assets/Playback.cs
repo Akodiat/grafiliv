@@ -23,10 +23,15 @@ public class Playback : MonoBehaviour {
 	void Update () {
         if (toggle.isOn)
         {
-            int frame = int.Parse(frameInput.text);
-            int skip = int.Parse(frameSkipInput.text);
-            frame += skip;
-            frameInput.text = ""+frame;
+            nextFrame();
         }
 	}
+
+    public void nextFrame()
+    {
+        int frame = int.Parse(frameInput.text);
+        int skip = int.Parse(frameSkipInput.text);
+        frame += skip;
+        frameInput.text = "" + frame;
+    }
 }
