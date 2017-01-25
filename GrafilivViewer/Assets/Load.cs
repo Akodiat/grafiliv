@@ -30,6 +30,8 @@ public class Load : MonoBehaviour {
 
     public Toggle inspectToggle;
 
+    public Text eggCounter;
+
 
     [SerializeField]
     private InputField frameField;
@@ -40,6 +42,15 @@ public class Load : MonoBehaviour {
 
     private FileInfo[] files;
     private DirectoryInfo dir;
+
+    private List<Vector3> GetOrgPositions(Particle[] ps, int orgID)
+    {
+        List<Vector3> positions = new List<Vector3>();
+        foreach (Particle p in ps)
+            if (p.o == orgID)
+                positions.Add(new Vector3(p.x, p.y, p.z));
+        return positions;
+    }
 
     
     private Material getMaterial(CellType ct){
@@ -116,6 +127,8 @@ public class Load : MonoBehaviour {
     {
         string line;
 
+        int nEggs = 0;
+
         try
         {
             StreamReader sr = new StreamReader("output/frame" + frame + ".json");
@@ -152,12 +165,15 @@ public class Load : MonoBehaviour {
             if (inspectToggle.isOn)
             {
                 particles[i].SendMessage("setParticle", p[i]);
+                particles[i].SendMessage("setOrganism", GetOrgPositions(p, p[i].o));
             }
 
             MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
             if (p[i].pt == ParticleType.Cell)
             {
                 renderer.material = getMaterial(p[i].ct);
+                if (p[i].ct == CellType.Egg)
+                    nEggs++;
             }
             else if (p[i].pt == ParticleType.Pellet)
             {
@@ -171,6 +187,7 @@ public class Load : MonoBehaviour {
             Destroy(particles[i]);
             particles.RemoveAt(i);
         }
+        eggCounter.text = "# of egg cells: " + nEggs;
     }
 }
 
