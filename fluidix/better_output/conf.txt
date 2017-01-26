@@ -1,0 +1,25 @@
+; This is a comment
+; Let's see how it works
+dt                          = 0.01			 ; Timestep size
+pelletLifetime              = 5.0
+w                           = 300,100,300
+nParticles                  = 50000
+nInitialOrganisms           = 1000
+bufferSize                  = 1000
+nSteps                      = 100000000
+initialOrganismDimensions   = 1,1,1
+nGenomeInputs               = 4
+interactionRange            = 10.0
+moveFactor                  = 100
+repulsiveForce              = 300
+springForce                 = 250.0
+groundRepulsiveForce        = 100.0
+initialCellEnergy           = 2.0
+minCellEnergy               = 1.0
+minPelletEnergy             = 0.01
+EnergyParticleEnergy        = 0.5
+CellExistenceThreshold      = 0.0
+cellMetabolism              = 0.02
+cellDecayRate               = 0.01
+fluidDensity                = 1.0
+gravity                     = -9.81
