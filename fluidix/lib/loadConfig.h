@@ -26,8 +26,9 @@ struct Global {
     float initialCellEnergy;
     float minCellEnergy;
     float minPelletEnergy;
-    float EnergyParticleEnergy;
-    float CellExistenceThreshold;
+    float energyParticleEnergy;
+    float energyParticleRadius;
+    float cellExistenceThreshold;
     float cellMetabolism;
     float cellDecayRate;
     float fluidDensity;
@@ -100,8 +101,9 @@ Global load(string path) {
         else if (str_eq(key,"initialCellEnergy"))           g.initialCellEnergy = stof(val);  
         else if (str_eq(key,"minCellEnergy"))               g.minCellEnergy = stof(val);  
         else if (str_eq(key,"minPelletEnergy"))             g.minPelletEnergy = stof(val);  
-        else if (str_eq(key,"EnergyParticleEnergy"))        g.EnergyParticleEnergy = stof(val);  
-        else if (str_eq(key,"CellExistenceThreshold"))      g.CellExistenceThreshold = stof(val);  
+        else if (str_eq(key,"energyParticleEnergy"))        g.energyParticleEnergy = stof(val);
+        else if (str_eq(key,"energyParticleRadius"))        g.energyParticleRadius = stof(val);
+        else if (str_eq(key,"cellExistenceThreshold"))      g.cellExistenceThreshold = stof(val);  
         else if (str_eq(key,"cellMetabolism"))              g.cellMetabolism = stof(val);  
         else if (str_eq(key,"cellDecayRate"))               g.cellDecayRate = stof(val);  
         else if (str_eq(key,"fluidDensity"))                g.fluidDensity = stof(val);  

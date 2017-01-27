@@ -72,10 +72,10 @@ struct Particle {
         rnd_uniform() * g.w.z          \
     );                                 \
     p.color = 0.7f;                    \
-    p.energy = g.EnergyParticleEnergy; \
+    p.energy = g.energyParticleEnergy; \
     p.signal = 0.0f;                   \
     p.alpha = 0.3f;                    \
-    p.radius = 2.0f;                   \
+    p.radius = g.energyParticleRadius; \
     p.density = 10.0f;                 \
 }
 
@@ -248,7 +248,7 @@ void setDefaultCellValues(Particle *cell) {
 
 bool applyPhenotype(vector<float> output, Particle *cell) {
     // If cell should not exist, return
-    if (output[N_CELL_TYPES + 1] < g.CellExistenceThreshold)
+    if (output[N_CELL_TYPES + 1] < g.cellExistenceThreshold)
         return false;
 
     float max = output[0]; cell->type = (CellType)0;
@@ -667,8 +667,10 @@ int main() {
 
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
-                p[i].f += f * g.moveFactor;
-                p[i].signal *= 0.5f;
+                if (p[i].particleType == Cell){
+                    p[i].f += f * g.moveFactor;
+                    p[i].signal *= 0.5f;
+                }
             }
             // Hatch eggs if they have enought energy:
             for (int i : eggs) {

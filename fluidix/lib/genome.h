@@ -289,19 +289,21 @@ public:
 		
 		first = true;
 		for(int i=0; i<connections.size(); i++) {
-			if(first) first = false;
-			else {
-				links += ",";
-				weights += ",";
-			}
-			
-			links +=
-				"{\"i\":" +
-				to_string(connections[i].in)  + ",\"o\":" +
-				to_string(connections[i].out) + 
-				"}";
-			weights +=
-				to_string(connections[i].weight);
+            if (connections[i].expressed) {
+                if (first) first = false;
+                else {
+                    links += ",";
+                    weights += ",";
+                }
+
+                links +=
+                    "{\"i\":" +
+                    to_string(connections[i].in) + ",\"o\":" +
+                    to_string(connections[i].out) +
+                    "}";
+                weights +=
+                    to_string(connections[i].weight);
+            }
 		}
 		
 		return
