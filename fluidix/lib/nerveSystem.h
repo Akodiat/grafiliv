@@ -127,8 +127,10 @@ private:
 			}
 		}
 		for(int i=0; i<nodes.size(); i++) {
-			nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
-            nodes[i].preVal = 0.0f; // TODO: why?
+            if (nodes[i].type != Input) {
+                nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
+            }
+            nodes[i].preVal = 0.0f;
 		}
 	}
 
@@ -148,7 +150,7 @@ public:
 		// Add output nodes and connect them to each input node
 		for(int i=0; i<nOut; i++) {
 			nodes.push_back(Node(Output));
-            int out = i;
+            int out = nIn + i;
             for (int j = 0; j<nIn; j++) {
                 int in = j;
                 float weight = rndNormal(rndGen);
@@ -156,6 +158,55 @@ public:
             }
 		}
 	}
+
+    NerveSystem(string json) {
+        // Extraction of several sub-matches
+        regex vertices_regex("\"vertices\":\\[(.*?)\\]");
+        regex links_regex("\"links\":\\[(.*?)\\]");
+        regex vertex_regex("\"i\":(\\d+),\"type\":(\\d+)");
+        regex link_regex("\"i\":(\\d+),\"o\":(\\d+),\"w\":(-?\\d+(.\\d+)?)");
+
+        smatch match;
+
+        regex_search(json, match, vertices_regex);
+        string vertices = match[1];
+
+        regex_search(json, match, links_regex);
+        string links = match[1];
+
+        while (regex_search(vertices, match, vertex_regex)){
+            ssub_match typeMatch = match[2];
+            NodeType type = (NodeType)stoi(typeMatch.str());
+
+            nodes.push_back(Node(type));
+
+            vertices = match.suffix().str();
+        }
+
+        while (regex_search(links, match, link_regex)){
+            ssub_match in       = match[1];
+            ssub_match out      = match[2];
+            ssub_match weight   = match[3];
+
+            connections.push_back(Connection(
+                stoi(in.str()),
+                stoi(out.str()),
+                stof(weight.str()),
+                true));
+
+            links = match.suffix().str();
+        }
+
+        nInputs = nOutputs = 0;
+        for each (Node node in nodes)
+        {
+            switch (node.type){
+            case Input:     nInputs++; break;
+            case Output:    nOutputs++; break;
+            default:        break;
+            }
+        }
+    }
 
     void updateInputs(int nIn) {
         normal_distribution<float> rndNormal(0.0f, 1.0f);
@@ -220,7 +271,6 @@ public:
 	string toJSON() {
 		string vertices = "";
 		string links = "";
-		string weights = "";
 
 		bool first = true;
 		for(int i=0; i<nodes.size(); i++) {
@@ -241,24 +291,20 @@ public:
                 if (first) first = false;
                 else {
                     links += ",";
-                    weights += ",";
                 }
 
                 links +=
-                    "{\"i\":" +
-                    to_string(connections[i].in) + ",\"o\":" +
-                    to_string(connections[i].out) +
+                    "{\"i\":" + to_string(connections[i].in) + 
+                    ",\"o\":" + to_string(connections[i].out) +
+                    ",\"w\":" + to_string(connections[i].weight) +
                     "}";
-                weights +=
-                    to_string(connections[i].weight);
             }
 		}
 		
-		return
-			string("\"nervesystem\":{") +
-			string("\"vertices\":[")    + vertices + string("],") +
-			string("\"links\":[")       + links    + string("],") +
-			string("\"weights\":[")     + weights  + string("]}");
+        return
+            string("\"nervesystem\":{") +
+            string("\"vertices\":[") + vertices + string("],") +
+            string("\"links\":[") + links + string("]}");
 	}
 
 	void printMathematica() {

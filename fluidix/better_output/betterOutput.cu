@@ -1,13 +1,12 @@
 //#include "fluidix.h"
 #define PARTICLE_BITS 28
 #include "C:\Program Files (x86)\Fluidix\include\fluidix.h"
+#include "../lib/structures.h"
 #include "../lib/genome.h"
 #include "../lib/nerveSystem.h"
-#include "../lib/loadConfig.h"
+#include "../lib/io.h"
 #include <queue>
 #include <ppl.h>
-#include <concurrent_queue.h>
-#include <unordered_map>
 
 #define transmitFloat(a, b, f) {addFloat(a, -f); addFloat(b, f);}
 #define isWeirdParticle(p) (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z)
@@ -17,44 +16,7 @@ using namespace std;
 using namespace concurrency;
 
 
-enum CellType {
-    Photo, Digest, Sting, Vascular, Fat, Sense, Egg,
-    N_CELL_TYPES
-};
-enum ParticleType {
-    Cell, Energy, Pellet, Buffer,
-    N_PARTICLE_TYPES
-};
-enum Neigbour { Front, Right, Up, Back, Left, Down };
-
 int currGenomeIndex;
-
-struct Organism {
-    Genome genome;
-    NerveSystem nerveSystem;
-    vector<int> cells;
-	int parent;
-};
-
-typedef std::unordered_map<int, Organism> organismMap;
-
-struct Particle {
-    ParticleType particleType;
-    xyz r, v, f;
-    float color;
-    float radius;
-    float alpha;
-    float density;
-    float energy;
-    float energyIn;
-    float energyOut;
-    float maxEnergy;
-    float signal;
-    int organism;
-    bool toBuffer;
-    int links[6];
-    CellType type;
-};
 
 #define turnIntoPellet(p) {         \
     p.particleType = Pellet;        \
@@ -248,7 +210,7 @@ void setDefaultCellValues(Particle *cell) {
 
 bool applyPhenotype(vector<float> output, Particle *cell) {
     // If cell should not exist, return
-    if (output[N_CELL_TYPES + 1] < g.cellExistenceThreshold)
+    if (output[N_CELL_TYPES] < g.cellExistenceThreshold)
         return false;
 
     float max = output[0]; cell->type = (CellType)0;
@@ -327,33 +289,82 @@ int getIdxFromCoord(int x, int y, int z, int3 br)
 }
 #define iFromCoord(x,y,z) cellBuff.at(getIdxFromCoord(x,y,z,br))
 
-void outputOrganism(Organism *o, int organismID){
-    mkdir("organisms");
-    char out_name[256];
-    sprintf(out_name, "organisms/org%d.json", organismID);
-	
-    FILE *out = fopen(out_name, "wb");
-    if (!out) {
-        perror("Cannot open file: ");
-        QUIT("error opening output file %s\n", out_name);
+int spawnOrganism(
+    xyz origin, ParticleBuffer *particleBuffer,
+    Particle *p, Genome genome, NerveSystem nerveSys, OrganismMap *organisms)
+{
+    int nParticlesNeeded = genome.getMaxCellsReq();
+    if (nParticlesNeeded > particleBuffer->unsafe_size()) {
+        printf("Not enought particles in buffer\n");
+        return -1;
     }
-    
-    fprintf(out, "{\n");
-	fprintf(out, o->genome.toJSON().c_str());
-	fprintf(out, ",\n");
-	fprintf(out, o->nerveSystem.toJSON().c_str());
-	fprintf(out, ",\n\"parent\": ");
-	fprintf(out, to_string(o->parent).c_str());
-	fprintf(out, "\n}");
-	
-	fclose(out);
+    vector<int> cellBuff;
+    while (nParticlesNeeded) {
+        int particle;
+        if (particleBuffer->try_pop(particle)) {
+            cellBuff.push_back(particle);
+            nParticlesNeeded--;
+        }
+    }
+
+    int3 br = genome.getBoundingRadius();
+
+    int organismID = currGenomeIndex++;
+    vector<int> removedCells;
+    vector<int> addedCells;
+
+    int nSensors = 0;
+
+    for (int x = -br.x; x <= br.x; x++)
+    for (int y = -br.y; y <= br.y; y++)
+    for (int z = -br.z; z <= br.z; z++) {
+        Particle *cell = &p[iFromCoord(x, y, z)];
+        cell->organism = organismID;
+        cell->r = origin + make_xyz(x, y, z);
+        cell->energy = g.initialCellEnergy;
+        setDefaultCellValues(cell);
+
+        vector<float> input;
+        input.push_back(x);
+        input.push_back(y);
+        input.push_back(z);
+        input.push_back(xyz_len(make_xyz(x, y, z)));
+
+        vector<float> output = genome.getOutput(input);
+
+        if (applyPhenotype(output, cell)) {
+            cell->links[Left] = x + 1 < br.x ? iFromCoord(x + 1, y, z) : -1;
+            cell->links[Up] = y + 1 < br.y ? iFromCoord(x, y + 1, z) : -1;
+            cell->links[Back] = z + 1 < br.z ? iFromCoord(x, y, z + 1) : -1;
+            cell->links[Right] = x - 1 >= 0 ? iFromCoord(x - 1, y, z) : -1;
+            cell->links[Down] = y - 1 >= 0 ? iFromCoord(x, y - 1, z) : -1;
+            cell->links[Front] = z - 1 >= 0 ? iFromCoord(x, y, z - 1) : -1;
+
+            if (cell->type == Sense)
+                nSensors++;
+            addedCells.push_back(iFromCoord(x, y, z));
+        }
+        else
+            removedCells.push_back(iFromCoord(x, y, z));
+    }
+    for (int i : removedCells)
+        emptyCellPos(p, i);
+
+    Organism organism = { genome, nerveSys, addedCells, -1};
+
+    //Add organism to organism map
+    organisms->emplace(organismID, organism);
+
+    //Output organism to disk
+    outputOrganism(&organism, organismID);
+
+    return organismID;
 }
 
 // Initialize new organism
 int spawnOrganism(
-    Fluidix<> *fx, int particleSet,
-    xyz origin, concurrent_queue<int> *particleBuffer,
-    Particle *p, int parent, organismMap *organisms)
+    xyz origin, ParticleBuffer *particleBuffer,
+    Particle *p, int parent, OrganismMap *organisms)
 {
 	Genome genome;
 	
@@ -362,7 +373,7 @@ int spawnOrganism(
 
 		// Define number of in- and outputs
 		int inputs = g.nGenomeInputs;              // X, Y, Z, Dist
-		int nonCelltypeOutputs = 2;         // Growth prob
+		int nonCelltypeOutputs = 1;         // Cell existence
 		int outputs = N_CELL_TYPES + nonCelltypeOutputs;
 		genome = Genome(inputs, outputs, gridDim);
 		//g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
@@ -509,81 +520,20 @@ int generateTerrain(Fluidix<> *fx){
     return meshLinks;
 }
 
-int initializeOrganism(Fluidix<> *fx, int pSet, concurrent_queue<int> *particleBuffer, Particle *p, organismMap *organisms)
+int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap *organisms)
 {
     xyz origin = make_xyz_uniform() * int3_to_xyz(g.w);
     origin.y /= 2;
     origin.y += g.w.y / 2;
 
-    return spawnOrganism(fx, pSet, origin, particleBuffer, p, -1, organisms);
-}
-
-void outputParticles(Particle *p, int nParticles, int step) {
-    char out_name[256];
-    sprintf(out_name, "output/frame%d.json", step);
-    
-    mkdir("output");
-    FILE *out = fopen(out_name, "wb");
-    if (!out) {
-        perror("Cannot open file: ");
-        QUIT("error opening output file %s\n", out_name);
-    }
-
-    fprintf(out, "{\"Items\":[\n");
-    bool first = true;
-    for (int i = 0; i < nParticles; i++) {
-        if(p[i].particleType == Cell || p[i].particleType == Pellet) {
-            if(first){
-                first = false;
-            } else {
-                fprintf(out, ",");
-            }
-            fprintf(out,
-                //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
-                (int) p[i].particleType,
-                (int) p[i].type, 
-                p[i].organism, 
-                p[i].energy,
-                p[i].r.x, p[i].r.y, p[i].r.z
-            );
-        }
-    }
-    fprintf(out, "]}");
-    fclose(out);
+    return spawnOrganism(origin, particleBuffer, p, -1, organisms);
 }
 
 int main() {
 
     Fluidix<> *fx = new Fluidix<>(&g);
 
-    /*
-	g.dt = 0.01f;
-	g.pelletLifetime = 5.0f;
-	g.w = make_int3(300, 100, 300);
-	g.nParticles = 50000;
-	g.nInitialOrganisms = 1000;
-	g.bufferSize = 1000;
-	g.nSteps = 100000000;
-	g.initialOrganismDimensions = make_int3(1, 1, 1);
-	g.nGenomeInputs = 4;
-	g.interactionRange = 10.0f;
-	g.moveFactor = 100;
-	g.repulsiveForce = 300;
-	g.springForce = 250.0f;
-	g.groundRepulsiveForce = 100.0f;
-	g.initialCellEnergy = 2.0f;
-	g.minCellEnergy = 1.0f;
-	g.minPelletEnergy = 0.01f;
-	g.EnergyParticleEnergy = 0.5f;
-	g.CellExistenceThreshold = 0.0f;
-	g.cellMetabolism = 0.02f;
-	g.cellDecayRate = 0.01f;
-	g.fluidDensity = 1.0f;
-	g.gravity = -9.81f;
-    */
-
-    g = load("conf.txt");
+    g = loadConfig("conf.txt");
 
     int pSet = fx->createParticleSet(g.nParticles);
 
@@ -591,10 +541,10 @@ int main() {
 
     currGenomeIndex = 0;
     g.nEggs = 0;
-    organismMap organisms;
+    OrganismMap organisms;
 
     fx->runEach(init(), pSet);
-    concurrent_queue<int> particleBuffer;
+    ParticleBuffer particleBuffer;
     Particle *p = fx->getParticleArray(pSet);
 
     int initialBufferSize =
@@ -606,26 +556,16 @@ int main() {
 
     for (int i = 0; i < initialBufferSize; i++) {
         turnIntoBuffer(p[i]);
-        /*
-        p[i].particleType = Buffer;
-        p[i].r = make_xyz(
-            rnd_uniform() * g.w.x,
-            rnd_uniform() * g.w.y - g.w.y,
-            rnd_uniform() * g.w.z
-            );
-        p[i].density = g.fluidDensity * 2;
-        p[i].alpha = 0.1f;
-        p[i].color = 0.5f;
-        p[i].radius = 1.0f;
-        p[i].organism = -1;
-        */
         p[i].r.y -= g.w.y;
         particleBuffer.push(i);
     }
 
+    loadOrg("initOrg.json", &particleBuffer, p, &organisms);
+    /*
     for (int i = 0; i < g.nInitialOrganisms; i++) {
-        initializeOrganism(fx, pSet, &particleBuffer, p, &organisms);
+        initializeOrganism(&particleBuffer, p, &organisms);
     }
+    */
     fx->applyParticleArray(pSet);
 
     int nReboots = 0;
@@ -680,7 +620,7 @@ int main() {
 
                 if (p[i].energy >= maxReqEnergy + g.initialCellEnergy) {
                     spawnOrganism(
-                        fx, pSet, p[i].r, &particleBuffer,
+                        p[i].r, &particleBuffer,
                         p, p[i].organism, &organisms
                     );
                     p[i].energy -= maxReqEnergy;
@@ -713,13 +653,13 @@ int main() {
 
         //fx->applyParticleArray(pSet);
 
-        if (step % 10 == 0){//(step % 10 == 0 && step > 1000000)
+        if (step % 10 == 0) {// && step > 1000000
 			//|| step % 10000 == 0) {
             printf("nEggs: %i\t", g.nEggs);
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("nReboots: %i\t", nReboots);
             printf("step %d\n", step);
-            if (currGenomeIndex - g.nInitialOrganisms - nReboots > 0)
+            //if (currGenomeIndex - g.nInitialOrganisms - nReboots > 0)
                 outputParticles(p, g.nParticles, step);
         }
 
@@ -727,5 +667,5 @@ int main() {
     }
     delete fx;
 
-    system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
+    //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }

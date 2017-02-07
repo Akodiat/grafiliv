@@ -5,6 +5,7 @@
 
 #include <random>
 #include <time.h>
+#include <regex>
 
 using namespace std;
 
@@ -28,6 +29,9 @@ class Genome {
 			uniform_int_distribution<int> rndInt(0, N_ACTIVATION_FUNCTIONS - 1);
 			f = ActivationFunction(rndInt(rndGen));
 		}
+
+        Node(NodeType t, ActivationFunction func) :
+            type(t), f(func), preVal(0.0f), postVal(0.0f) {}
 
 		float activationFunction(float x) {
 			switch(f) {
@@ -134,7 +138,21 @@ private:
                 ));
         }
 	}
+    /*
+    // Mutate structure by removing node
+    void mutateRemoveNode() {
+        // Select and remove a random node
+        uniform_int_distribution<int> rndInt(0, nodes.size() - 1);
+        int node = rndInt(rndGen);
+        nodes.erase(nodes.begin() + node);
 
+        for (int i = 0; i<connections.size(); i++) {
+            if (connections[i].in == node || connections[i].out == node) {
+                
+            }
+        }
+    }
+    */
     void mutateBoundingRadius() {
         uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
         //Divide by six to make prob of mutation in any direction
@@ -164,8 +182,10 @@ private:
 			}
 		}
 		for(int i=0; i<nodes.size(); i++) {
-			nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
-            nodes[i].preVal = 0.0f; // TODO: why?
+            if (nodes[i].type != Input) {
+                nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
+            }
+            nodes[i].preVal = 0.0f;
 		}
 	}
 
@@ -187,7 +207,7 @@ public:
 		// Add output nodes and connect them to each input node
 		for(int i=0; i<nOut; i++) {
 			nodes.push_back(Node(Output));
-            int out = i;
+            int out = nIn + i;
             for (int j = 0; j<nIn; j++) {
                 int in = j;
                 float weight = rndNormal(rndGen);
@@ -195,6 +215,69 @@ public:
             }
 		}
 	}
+
+    Genome(string json) {
+        // Extraction of several sub-matches
+        regex vertices_regex("\"vertices\":\\[(.*?)\\]");
+        regex links_regex("\"links\":\\[(.*?)\\]");
+        regex radius_regex("\"radius\":\\[(.*?),(.*?),(.*?)\\]");
+        regex vertex_regex("\"i\":(\\d+),\"type\":(\\d+),\"f\":(\\d+)");
+        regex link_regex("\"i\":(\\d+),\"o\":(\\d+),\"w\":(-?\\d+(.\\d+)?)");
+
+        smatch match;
+
+        regex_search(json, match, vertices_regex);
+        string vertices = match[1];
+
+        regex_search(json, match, links_regex);
+        string links = match[1];
+
+        while (regex_search(vertices, match, vertex_regex)){
+            ssub_match typeMatch = match[2];
+            NodeType type = (NodeType)stoi(typeMatch.str());
+
+            ssub_match fMatch = match[3];
+            ActivationFunction f = (ActivationFunction)stoi(fMatch.str());
+            nodes.push_back(Node(type,f));
+
+            vertices = match.suffix().str();
+        }
+
+        while (regex_search(links, match, link_regex)){
+            ssub_match in       = match[1];
+            ssub_match out      = match[2];
+            ssub_match weight   = match[3];
+
+            connections.push_back(Connection(
+                stoi(in.str()),
+                stoi(out.str()),
+                stof(weight.str()),
+                true));
+
+            links = match.suffix().str();
+        }
+
+        if (regex_search(json, match, radius_regex)){
+            ssub_match x = match[1];
+            ssub_match y = match[2];
+            ssub_match z = match[3];
+            boundingRadius = make_int3(
+                stoi(x.str()),
+                stoi(y.str()),
+                stoi(z.str())
+            );
+        }
+
+        nInputs = nOutputs = 0;
+        for each (Node node in nodes)
+        {
+            switch (node.type){
+            case Input:     nInputs++; break;
+            case Output:    nOutputs++; break;
+            default:        break;
+            }
+        }        
+    }
 
     int3 getBoundingRadius() {
         return boundingRadius;
@@ -270,7 +353,6 @@ public:
 	string toJSON() {
 		string vertices = "";
 		string links = "";
-		string weights = "";
 
 		bool first = true;
 		for(int i=0; i<nodes.size(); i++) {
@@ -293,16 +375,13 @@ public:
                 if (first) first = false;
                 else {
                     links += ",";
-                    weights += ",";
                 }
 
                 links +=
-                    "{\"i\":" +
-                    to_string(connections[i].in) + ",\"o\":" +
-                    to_string(connections[i].out) +
+                    "{\"i\":" + to_string(connections[i].in) + 
+                    ",\"o\":" + to_string(connections[i].out) +
+                    ",\"w\":" + to_string(connections[i].weight) +
                     "}";
-                weights +=
-                    to_string(connections[i].weight);
             }
 		}
 		
@@ -310,7 +389,6 @@ public:
 			string("\"genome\":{")   +
 			string("\"vertices\":[") + vertices + string("],") +
 			string("\"links\":[")    + links    + string("],") +
-			string("\"weights\":[")  + weights  + string("],") +
 			string("\"radius\":[")   +
 			(
 				to_string(boundingRadius.x) + "," +

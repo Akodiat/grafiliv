@@ -1,39 +1,19 @@
-#ifndef LOAD_CONFIG_H
-#define LOAD_CONFIG_H
+#ifndef IO_H
+#define IO_H
 
 #include <fstream>
+#include <sstream>
 #include <algorithm>
+#include <concurrent_queue.h>
+#include "../lib/structures.h"
 
 using namespace std;
 
-struct Global {
-    int nEggs;
-
-    float dt; // integration time-step
-    float pelletLifetime;
-    int3 w;
-    int nParticles;
-    int nInitialOrganisms;
-    int bufferSize;
-    int nSteps;
-    int3 initialOrganismDimensions;
-    int nGenomeInputs; //Inputs x,y,z,d
-    float interactionRange;
-    int moveFactor;
-    int repulsiveForce;
-    float springForce; // spring constant
-    float groundRepulsiveForce; // repulsive wall force
-    float initialCellEnergy;
-    float minCellEnergy;
-    float minPelletEnergy;
-    float energyParticleEnergy;
-    float energyParticleRadius;
-    float cellExistenceThreshold;
-    float cellMetabolism;
-    float cellDecayRate;
-    float fluidDensity;
-    float gravity;
-} g;
+//Define spawnOrganism function
+int spawnOrganism(
+    xyz origin, ParticleBuffer *particleBuffer, Particle *p,
+    Genome genome, NerveSystem nerveSys, OrganismMap *organisms
+);
 
 // Convert string to int3
 // Requires form "x,y,z"
@@ -52,15 +32,15 @@ bool str_eq(string a, string b){
     return !a.compare(b);
 }
 
-Global load(string path) {
+Global loadConfig(string path) {
     ifstream file;
     file.open(path.c_str());
     if (!file){
-        printf("Config file %s could not be found!\n", path.c_str());
+        printf("File %s could not be found!\n", path.c_str());
         exit(-1);
     }
     else
-       printf("Loaded config file: %s:\n", path.c_str());
+       printf("Loaded file: %s:\n", path.c_str());
 
     Global g = Global();
 
@@ -113,6 +93,109 @@ Global load(string path) {
     file.close();
 
     return g;
+}
+
+void loadOrg(
+    string path,
+    ParticleBuffer *particleBuffer,
+    Particle *p,
+    OrganismMap *organisms)
+{
+    ifstream t(path);
+    if (t){
+
+        std::stringstream buffer;
+        buffer << t.rdbuf();
+
+        string org = buffer.str();
+
+        smatch match;
+
+        regex genome_regex("\"genome\":\\{(.*)\\}");
+        regex nerve_regex("\"nervesystem\":\\{(.*)\\}");
+        //regex parent_regex("\"parent\":(.*)");
+
+        regex_search(org, match, genome_regex);
+        string sGenome = match[1];
+        Genome genome(sGenome);
+
+        regex_search(org, match, nerve_regex);
+        string sNerveSys = match[1];
+        NerveSystem nerveSys(sNerveSys);
+
+        //regex_search(org, match, parent_regex);
+        //int parent = stoi(match[1]);
+
+        //Set random position:
+        xyz origin = make_xyz_uniform() * int3_to_xyz(g.w);
+        origin.y /= 2;
+        origin.y += g.w.y / 2;
+
+        spawnOrganism(
+            origin, particleBuffer, p, genome, nerveSys, organisms
+            );
+    }
+    else {
+        cerr << "Could not load organism from file: " << path << endl;
+    }
+}
+
+void outputOrganism(Organism *o, int organismID){
+    mkdir("organisms");
+    char out_name[256];
+    sprintf(out_name, "organisms/org%d.json", organismID);
+
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        cerr << "Error writing to organism output file " << out_name << endl;
+    }
+
+    fprintf(out, "{\n");
+    fprintf(out, o->genome.toJSON().c_str());
+    fprintf(out, ",\n");
+    fprintf(out, o->nerveSystem.toJSON().c_str());
+    fprintf(out, ",\n\"parent\": ");
+    fprintf(out, to_string(o->parent).c_str());
+    fprintf(out, "\n}");
+
+    fclose(out);
+}
+
+
+void outputParticles(Particle *p, int nParticles, int step) {
+    char out_name[256];
+    sprintf(out_name, "output/frame%d.json", step);
+
+    mkdir("output");
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file %s\n", out_name);
+    }
+
+    fprintf(out, "{\"Items\":[\n");
+    bool first = true;
+    for (int i = 0; i < nParticles; i++) {
+        if (p[i].particleType == Cell || p[i].particleType == Pellet) {
+            if (first){
+                first = false;
+            }
+            else {
+                fprintf(out, ",");
+            }
+            fprintf(out,
+                //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
+                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
+                (int)p[i].particleType,
+                (int)p[i].type,
+                p[i].organism,
+                p[i].energy,
+                p[i].r.x, p[i].r.y, p[i].r.z
+                );
+        }
+    }
+    fprintf(out, "]}");
+    fclose(out);
 }
 
 #endif
