@@ -76,8 +76,7 @@ public class OrgInspector : MonoBehaviour {
         {
             var c = org.genome.links[i];
             if (c.i == c.o) continue; //Ignore self connections at the moment
-            float w = org.genome.weights[i];
-            connections.Add(new Connection(nodes[c.i], nodes[c.o], w));
+            connections.Add(new Connection(nodes[c.i], nodes[c.o], c.w));
         }
     }
 
@@ -203,7 +202,6 @@ public struct Genome
 {
     public List<GenomeVert> vertices;
     public List<Link> links;
-    public List<float> weights;
     public int[] radius;
 }
 
@@ -212,13 +210,13 @@ public struct NerveSystem
 {
     public List<NerveVert> vertices;
     public List<Link> links;
-    public List<float> weights;
 }
 
 [System.Serializable]
 public struct Link
 {
     public int i, o;
+    public float w;
 }
 
 [System.Serializable]
