@@ -20,7 +20,6 @@ int currGenomeIndex;
 
 #define turnIntoPellet(p) {         \
     p.particleType = Pellet;        \
-    p.energy = g.pelletLifetime;    \
     p.density = g.fluidDensity * 2; \
     p.alpha = 0.5f;                 \
     p.organism = -1;                \

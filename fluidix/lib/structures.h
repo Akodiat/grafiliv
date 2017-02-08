@@ -10,7 +10,6 @@ struct Global {
     int nEggs;
 
     float dt; // integration time-step
-    float pelletLifetime;
     int3 w;
     int nParticles;
     int nInitialOrganisms;

@@ -65,7 +65,6 @@ Global loadConfig(string path) {
         printf("parameter: %s, value: %s\n", key.c_str(), val.c_str());
 
         if      (str_eq(key,"dt"))                          g.dt = stof(val);
-        else if (str_eq(key,"pelletLifetime"))              g.pelletLifetime = stof(val);  
         else if (str_eq(key,"w"))                           g.w = stoi3(val);  
         else if (str_eq(key,"nParticles"))                  g.nParticles = stoi(val);  
         else if (str_eq(key,"nInitialOrganisms"))           g.nInitialOrganisms = stoi(val);  

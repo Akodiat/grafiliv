@@ -1,7 +1,6 @@
 ; This is a comment
 ; Let's see how it works
 dt                          = 0.01			 ; Timestep size
-pelletLifetime              = 5.0
 w                           = 300,100,300
 nParticles                  = 50000
 nInitialOrganisms           = 1000
