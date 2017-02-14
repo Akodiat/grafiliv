@@ -80,6 +80,8 @@ public:
             NodeType type = (NodeType)stoi(typeMatch.str());
             int id = stoi(idMatch.str());
 
+            if (id > nextNodeId) nextNodeId = id;
+
             Node node(type);
             nodes.emplace(id, node);
 
@@ -101,11 +103,13 @@ public:
         }
 
         nInputs = nOutputs = 0;
-        for(int i=0; i<nodes.size(); i++) {
-            switch (nodes[i].type) {
-            case Input:     nInputs++; break;
-            case Output:    nOutputs++; break;
-            default:        break;
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                switch (nodes.at(i).type) {
+                case Input:     nInputs++; break;
+                case Output:    nOutputs++; break;
+                default:        break;
+                }
             }
         }
     }
@@ -116,10 +120,12 @@ public:
             int in = nextNodeId;
             nodes.emplace(nextNodeId++, Node(Input));
             nInputs++;
-            for(int i=0; i<nodes.size(); i++) {
-                if (nodes[i].type == Output) {
-                    float weight = rndNormal(rndGen);
-                    connections.push_back(Connection(in, i, weight, true));
+            for(int i=0; i<=nextNodeId; i++) {
+                if (hasNode(i)) {
+                    if (nodes.at(i).type == Output) {
+                        float weight = rndNormal(rndGen);
+                        connections.push_back(Connection(in, i, weight, true));
+                    }
                 }
             }
         }
@@ -135,32 +141,36 @@ public:
     // Input data into the network and get output
     vector<float> getOutput(vector<float> input) {
         // Clear previous values
-//      for (int i = 0; i<nodes.size(); i++) {
-//          nodes[i].preVal = nodes[i].postVal = 0.0f;
+//      for (int i = 0; i<=nextNodeId; i++) {
+//          nodes.at(i).preVal = nodes.at(i).postVal = 0.0f;
 //      }
 
         int iInput = 0;
-        for (int i = 0; i<nodes.size(); i++) {
-            if (nodes[i].type == Input){
-                // It is possible for a sensor cell to die, in that case
-                // its signal value will be 0.0f
-                try {
-                    nodes[i].postVal = input.at(iInput);
+        for (int i = 0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type == Input){
+                    // It is possible for a sensor cell to die, in that case
+                    // its signal value will be 0.0f
+                    try {
+                        nodes.at(i).postVal = input.at(iInput);
+                    }
+                    catch (const out_of_range& oor){
+                        nodes.at(i).postVal = 0.0f;
+                    }
+                    iInput++;
                 }
-                catch (const std::out_of_range& oor){
-                    nodes[i].postVal = 0.0f;
-                }
-                iInput++;
             }
         }
         for (int i = 0; i<nActivationCycles; i++) {
             computeOneCycle();
         }
         vector<float> output;
-        for(int i=0; i<nodes.size(); i++) {
-            if (nodes[i].type == Output){
-                //TODO: should we use activationFunction here?
-                output.push_back(nodes[i].activationFunction(nodes[i].postVal));
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type == Output){
+                    //TODO: should we use activationFunction here?
+                    output.push_back(nodes.at(i).activationFunction(nodes.at(i).postVal));
+                }
             }
         }
         return output;
@@ -183,30 +193,32 @@ public:
         string links = "";
 
         bool first = true;
-        for(int i = 0; i<nodes.size(); i++) {
-            if (first) first = false;
-            else vertices += ",";
+        for(int i = 0; i<nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (first) first = false;
+                else vertices += ",";
 
-            vertices +=
-                "{\"i\":"               +
-                to_string(i)           +
-                ",\"type\":"            +
-                to_string(nodes[i].type)    +
-                "}";
+                vertices +=
+                    "{\"i\":" +
+                    to_string(i) +
+                    ",\"type\":" +
+                    to_string(nodes.at(i).type) +
+                    "}";
+            }
         }
 
         first = true;
-        for(int i=0; i<connections.size(); i++) {
-            if (connections[i].expressed) {
+        for (int i = 0; i<connections.size(); i++) {
+            if (connections.at(i).expressed) {
                 if (first) first = false;
                 else {
                     links += ",";
                 }
 
                 links +=
-                    "{\"i\":" + to_string(connections[i].in) +
-                    ",\"o\":" + to_string(connections[i].out) +
-                    ",\"w\":" + to_string(connections[i].weight) +
+                    "{\"i\":" + to_string(connections.at(i).in) +
+                    ",\"o\":" + to_string(connections.at(i).out) +
+                    ",\"w\":" + to_string(connections.at(i).weight) +
                     "}";
             }
         }
@@ -217,154 +229,164 @@ public:
             string("\"links\":[") + links + string("]}");
     }
 
-    private:
-        vector<Connection>          connections;
-        map<int, Node>  nodes;
-        static int currInnovNumber;
-        int nextNodeId;
+private:
+    vector<Connection> connections;
+    map<int, Node> nodes;
+    static int currInnovNumber;
+    int nextNodeId = 0;
 
-        int nInputs;
-        int nOutputs;
+    int nInputs;
+    int nOutputs;
 
-        // Number of times to propagate values
-        int nActivationCycles = 10;
+    // Number of times to propagate values
+    int nActivationCycles = 10;
 
-        // Mutate each connection with small pertubation
-        void mutateConnections() {
-            uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
-            normal_distribution<float> rndNormal(0.0f, 1.0f);
-            for (int i = 0; i<connections.size(); i++)
+    // Returns true if node with id i exists
+    bool hasNode(int i){
+        return nodes.count(i) > 0;
+    }
+
+    // Mutate each connection with small pertubation
+    void mutateConnections() {
+        uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
+        normal_distribution<float> rndNormal(0.0f, 1.0f);
+        for(int i=0; i<connections.size(); i++)
             if (rndUniform(rndGen) < MUTATION_PROB)
-                connections[i].weight *= rndNormal(rndGen);
-        }
+                connections.at(i).weight *= rndNormal(rndGen);
+    }
 
-        // Mutate structure by adding connection
-        void mutateAddConnection() {
-            // If there are connection left to add
-            if (connections.size() < nodes.size()*nodes.size()) {
-                vector<int> sources, recievers;
-                for (auto it : nodes) {
-                    int id = it.first;
-                    Node n = it.second;
-                    {
-                        switch (n.type) {
-                        case Input:
-                            sources.push_back(id);
-                            break;
-                        case Output:
-                            recievers.push_back(id);
-                            break;
-                        case Hidden:
-                            sources.push_back(id);
-                            recievers.push_back(id);
-                            break;
-                        }
+    // Mutate structure by adding connection
+    void mutateAddConnection() {
+        // If there are connection left to add
+        if (connections.size() < nodes.size()*nodes.size()) {
+            vector<int> sources, recievers;
+            for(int i=0; i<=nextNodeId; i++) {
+                if (hasNode(i)) {
+                    switch (nodes.at(i).type) {
+                    case Input:
+                        sources.push_back(i);
+                        break;
+                    case Output:
+                        recievers.push_back(i);
+                        break;
+                    case Hidden:
+                        sources.push_back(i);
+                        recievers.push_back(i);
+                        break;
                     }
                 }
-
-                if (sources.size() == 0 || recievers.size() == 0)
+            }
+            if (sources.size() == 0 || recievers.size() == 0)
                     return;
 
-                uniform_int_distribution<int> rndSource(0, sources.size() - 1);
-                uniform_int_distribution<int> rndReciever(0, recievers.size() - 1);
+            uniform_int_distribution<int> rndSource(0, sources.size() - 1);
+            uniform_int_distribution<int> rndReciever(0, recievers.size() - 1);
 
-                int in = sources[rndSource(rndGen)];
-                int out = recievers[rndReciever(rndGen)];
+            int in  = sources[rndSource(rndGen)];
+            int out = recievers[rndReciever(rndGen)];
 
-                int timeoutTries = sources.size() * recievers.size();
+            int timeoutTries = sources.size() * recievers.size();
 
-                // Make sure the connection doesn't already exist
-                for (int i = 0; i < connections.size(); i++) {
-                    if (connections[i].in == in && connections[i].out == out) {
-                        // For n nodes, give up after n^2 tries
-                        if (!timeoutTries--) return;
+            // Make sure the connection doesn't already exist
+            for (int i = 0; i < connections.size(); i++) {
+                if (connections.at(i).in == in && connections.at(i).out == out) {
+                    // For n nodes, give up after n^2 tries
+                    if (!timeoutTries--) return;
 
-                        int in = rndSource(rndGen);
-                        int out = rndReciever(rndGen);
+                    int in = rndSource(rndGen);
+                    int out = rndReciever(rndGen);
 
-                        i = 0;
-                    }
+                    i = 0;
                 }
-                normal_distribution<float> rndNormal(0.0f, 1.0f);
-                float weight = rndNormal(rndGen);
-
-                // Add new connection (with random weight) to list
-                connections.push_back(Connection(in, out, weight, true));
             }
+            normal_distribution<float> rndNormal(0.0f, 1.0f);
+            float weight = rndNormal(rndGen);
+
+            // Add new connection (with random weight) to list
+            connections.push_back(Connection(in, out, weight, true));
         }
+    }
 
-        // Mutate structure by adding node
-        void mutateAddNode() {
-            if (connections.size() > 0) {
-                // Select and disable random connection
-                uniform_int_distribution<int> rndInt(0, connections.size() - 1);
-                int iRndCon = rndInt(rndGen);
-                connections[iRndCon].expressed = false;
+    // Mutate structure by adding node
+    void mutateAddNode() {
+        if (connections.size() > 0) {
+            // Select and disable random connection
+            uniform_int_distribution<int> rndInt(0, connections.size() - 1);
+            int iRndCon = rndInt(rndGen);
+            connections[iRndCon].expressed = false;
 
-                nodes.emplace(nextNodeId++, Node(Hidden)); // Add new node to list
-                int id = nextNodeId; // Get new node's index
+            nodes.emplace(nextNodeId++, Node(Hidden)); // Add new node to list
+            int id = nextNodeId; // Get new node's index
 
-                // Connect new node between previously connected nodes
-                connections.push_back(Connection(
-                    connections[iRndCon].in,
-                    id,
-                    1.0f,
-                    true
-                    ));
-                connections.push_back(Connection(
-                    id,
-                    connections[iRndCon].out,
-                    connections[iRndCon].weight,
-                    true
-                    ));
-            }
+            // Connect new node between previously connected nodes
+            connections.push_back(Connection(
+                connections[iRndCon].in,
+                id,
+                1.0f,
+                true
+                ));
+            connections.push_back(Connection(
+                id,
+                connections[iRndCon].out,
+                connections[iRndCon].weight,
+                true
+                ));
         }
+    }
 
-        // Mutate structure by removing connection
-        void mutateRemoveConnection() {
-            // Select and remove a random node
-            if (connections.size() > 0) {
-                uniform_int_distribution<int> rndInt(0, connections.size() - 1);
-                int connection = rndInt(rndGen);
-                connections.erase(connections.begin() + connection);
+    // Mutate structure by removing connection
+    void mutateRemoveConnection() {
+        // Select and remove a random node
+        if (connections.size() > 0) {
+            uniform_int_distribution<int> rndInt(0, connections.size() - 1);
+            int connection = rndInt(rndGen);
+            connections.erase(connections.begin() + connection);
 
-                for (auto it = nodes.cbegin(); it != nodes.cend();){
-                    int id = (*it).first;
-                    Node node = (*it).second;
-                    if (node.type == Hidden) {
+            for (int i = 0; i <= nextNodeId; i++) {
+                if (hasNode(i)) {
+                    if (nodes.at(i).type == Hidden) {
                         //Check for remaining connections to the hidden node;
+                        bool connected = false;
                         for (int j = 0; j < connections.size(); j++) {
-                            if (connections[j].in == id || connections[j].out == id){
-                                ++it;
-                                continue;
+                            if (connections.at(j).in == i || connections.at(j).out == i){
+                                connected = true;
+                                break;
                             }
                         }
                         // If there are no remaining connections to the hidden node
                         // it can be removed:
-                        it = nodes.erase(it);
+                        if (!connected) {
+                            nodes.erase(i);
+                        }
                     }
                 }
             }
         }
+    }
 
 
-        // Propagate values through network one step
-        void computeOneCycle(){
-            for (int i = 0; i<connections.size(); i++) {
-                if (connections[i].expressed) {
-                    nodes[connections[i].out].preVal +=
-                        nodes[connections[i].in].postVal *
-                        connections[i].weight;
+    // Propagate values through network one step
+    void computeOneCycle(){
+        for (int i = 0; i<connections.size(); i++) {
+            if (connections.at(i).expressed) {
+                if (hasNode(connections.at(i).out) &&
+                    hasNode(connections.at(i).in))
+                {
+                    nodes.at(connections.at(i).out).preVal +=
+                        nodes.at(connections.at(i).in).postVal *
+                        connections.at(i).weight;
                 }
-            }
-            for (auto it : nodes) {
-                Node node = it.second;
-                if (node.type != Input) {
-                    node.postVal = node.activationFunction(node.preVal);
-                }
-                node.preVal = 0.0f;
             }
         }
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type != Input) {
+                    nodes.at(i).postVal = nodes.at(i).activationFunction(nodes.at(i).preVal);
+                }
+                nodes.at(i).preVal = 0.0f;
+            }
+        }
+    }
 };
 
 int NerveSystem::currInnovNumber = 0;

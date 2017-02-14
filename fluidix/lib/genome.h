@@ -51,7 +51,8 @@ public:
             case Id:    return clamp(x, -1, 1);
             case Mod:   return fmod(x, 1);
             default:
-                printf("Activation function (%d) not set", f);
+                //throw invalid_argument("Incorrect activation function");
+                cerr << "Activation function " << f << " not set\n" << endl;
                 return NULL;
             }
         }
@@ -83,8 +84,8 @@ public:
         }
         // Add output nodes and connect them to each input node
         for (int i = 0; i<nOut; i++) {
-            nodes.emplace(nextNodeId++, Node(Output));
-            int out = nodes.size() - 1;
+            int out = nextNodeId++;
+            nodes.emplace(out, Node(Output));
             for (int j = 0; j<nIn; j++) {
                 int in = j;
                 float weight = rndNormal(rndGen);
@@ -118,6 +119,8 @@ public:
             int id = stoi(idMatch.str());
             ActivationFunction f = (ActivationFunction)stoi(fMatch.str());
 
+            if (id > nextNodeId) nextNodeId = id;
+
             Node node(type, f);
             nodes.emplace(id, node);
 
@@ -150,11 +153,13 @@ public:
         }
 
         nInputs = nOutputs = 0;
-        for(int i=0; i<nodes.size(); i++) {
-            switch (nodes[i].type) {
-            case Input:     nInputs++; break;
-            case Output:    nOutputs++; break;
-            default:        break;
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                switch (nodes.at(i).type) {
+                case Input:     nInputs++; break;
+                case Output:    nOutputs++; break;
+                default:        break;
+                }
             }
         }
     }
@@ -178,32 +183,38 @@ public:
     // Input data into the network and get output
     vector<float> getOutput(vector<float> input) {
         // Clear previous values
-        for (int i = 0; i<nodes.size(); i++) {
-            nodes[i].preVal = nodes[i].postVal = 0.0f;
+        for (int i = 0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                nodes.at(i).preVal = nodes.at(i).postVal = 0.0f;
+            }
         }
 
         int iInput = 0;
-        for (int i = 0; i<nodes.size(); i++) {
-            if (nodes[i].type == Input){
-                // It is possible for a sensor cell to die, in that case
-                // its signal value will be 0.0f
-                try {
-                    nodes[i].postVal = input.at(iInput);
+        for (int i = 0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type == Input){
+                    // It is possible for a sensor cell to die, in that case
+                    // its signal value will be 0.0f
+                    try {
+                        nodes.at(i).postVal = input.at(iInput);
+                    }
+                    catch (const out_of_range& oor){
+                        nodes.at(i).postVal = 0.0f;
+                    }
+                    iInput++;
                 }
-                catch (const std::out_of_range& oor){
-                    nodes[i].postVal = 0.0f;
-                }
-                iInput++;
             }
         }
         for (int i = 0; i<nActivationCycles; i++) {
             computeOneCycle();
         }
         vector<float> output;
-        for(int i=0; i<nodes.size(); i++) {
-            if (nodes[i].type == Output){
-                //TODO: should we use activationFunction here?
-                output.push_back(nodes[i].activationFunction(nodes[i].postVal));
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type == Output){
+                    //TODO: should we use activationFunction here?
+                    output.push_back(nodes.at(i).activationFunction(nodes.at(i).postVal));
+                }
             }
         }
         return output;
@@ -227,32 +238,34 @@ public:
         string links = "";
 
         bool first = true;
-        for(int i = 0; i<nodes.size(); i++) {
-            if (first) first = false;
-            else vertices += ",";
+        for(int i = 0; i<nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (first) first = false;
+                else vertices += ",";
 
-            vertices +=
-                "{\"i\":" +
-                to_string(i) +
-                ",\"type\":" +
-                to_string(nodes[i].type) +
-                ",\"f\":" +
-                to_string(nodes[i].f) +
-                "}";
+                vertices +=
+                    "{\"i\":" +
+                    to_string(i) +
+                    ",\"type\":" +
+                    to_string(nodes.at(i).type) +
+                    ",\"f\":" +
+                    to_string(nodes.at(i).f) +
+                    "}";
+            }
         }
 
         first = true;
         for (int i = 0; i<connections.size(); i++) {
-            if (connections[i].expressed) {
+            if (connections.at(i).expressed) {
                 if (first) first = false;
                 else {
                     links += ",";
                 }
 
                 links +=
-                    "{\"i\":" + to_string(connections[i].in) +
-                    ",\"o\":" + to_string(connections[i].out) +
-                    ",\"w\":" + to_string(connections[i].weight) +
+                    "{\"i\":" + to_string(connections.at(i).in) +
+                    ",\"o\":" + to_string(connections.at(i).out) +
+                    ",\"w\":" + to_string(connections.at(i).weight) +
                     "}";
             }
         }
@@ -269,39 +282,12 @@ public:
             );
     }
 
-    void printMathematica() {
-        string vertices = "";
-        string links = "";
-        string vertexStyle = "";
-        string edgeWeights = "";
-        for (int i = 0; i<nodes.size(); i++) {
-            vertices += to_string(i) +
-                (i == nodes.size() - 1 ? "" : ", ");
-            switch (nodes[i].type) {
-            case Input: vertexStyle += (to_string(i) + "->Blue, "); break;
-            case Output: vertexStyle += (to_string(i) + "->Red, ");  break;
-            }
-        }
-        for (int i = 0; i<connections.size(); i++) {
-            links +=
-                to_string(connections[i].in) + "->" +
-                to_string(connections[i].out) +
-                (i == connections.size() - 1 ? "" : ", ");
-            edgeWeights += to_string(connections[i].weight) +
-                (i == connections.size() - 1 ? "" : ", ");
-        }
-        cout << "Graph[{" << vertices << "},{" << links << "}, " <<
-            "VertexStyle->{" << vertexStyle << "}, " <<
-            "EdgeWeight->{" << edgeWeights << "}, " <<
-            "VertexLabels->\"Name\"]" << endl;
-    }
-
 private:
-    vector<Connection>          connections;
-    map<int,Node>               nodes;
-    int3                        boundingRadius;
+    vector<Connection> connections;
+    map<int, Node> nodes;
+    int3 boundingRadius;
     static int currInnovNumber;
-    int nextNodeId;
+    int nextNodeId = 0;
 
     int nInputs;
     int nOutputs;
@@ -309,13 +295,18 @@ private:
     // Number of times to propagate values
     int nActivationCycles = 10;
 
+    // Returns true if node with id i exists
+    bool hasNode(int i){
+        return nodes.count(i) > 0;
+    }
+
     // Mutate each connection with small pertubation
     void mutateConnections() {
         uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
         normal_distribution<float> rndNormal(0.0f, 1.0f);
         for(int i=0; i<connections.size(); i++)
             if (rndUniform(rndGen) < MUTATION_PROB)
-                connections[i].weight *= rndNormal(rndGen);
+                connections.at(i).weight *= rndNormal(rndGen);
     }
 
     // Mutate structure by adding connection
@@ -323,9 +314,9 @@ private:
         // If there are connection left to add
         if (connections.size() < nodes.size()*nodes.size()) {
             vector<int> sources, recievers;
-            for(int i=0; i<nodes.size(); i++) {
-                {
-                    switch (nodes[i].type) {
+            for(int i=0; i<=nextNodeId; i++) {
+                if (hasNode(i)) {
+                    switch (nodes.at(i).type) {
                     case Input:
                         sources.push_back(i);
                         break;
@@ -352,7 +343,7 @@ private:
 
             // Make sure the connection doesn't already exist
             for (int i = 0; i < connections.size(); i++) {
-                if (connections[i].in == in && connections[i].out == out) {
+                if (connections.at(i).in == in && connections.at(i).out == out) {
                     // For n nodes, give up after n^2 tries
                     if (!timeoutTries--) return;
 
@@ -405,20 +396,23 @@ private:
             int connection = rndInt(rndGen);
             connections.erase(connections.begin() + connection);
 
-            for (auto it = nodes.cbegin(); it != nodes.cend();){
-                int id = (*it).first;
-                Node node = (*it).second;
-                if (node.type == Hidden) {
-                    //Check for remaining connections to the hidden node;
-                    for (int j = 0; j < connections.size(); j++) {
-                        if (connections[j].in == id || connections[j].out == id){
-                            ++it;
-                            continue;
+            for (int i = 0; i <= nextNodeId; i++) {
+                if (hasNode(i)) {
+                    if (nodes.at(i).type == Hidden) {
+                        //Check for remaining connections to the hidden node;
+                        bool connected = false;
+                        for (int j = 0; j < connections.size(); j++) {
+                            if (connections.at(j).in == i || connections.at(j).out == i){
+                                connected = true;
+                                break;
+                            }
+                        }
+                        // If there are no remaining connections to the hidden node
+                        // it can be removed:
+                        if (!connected) {
+                            nodes.erase(i);
                         }
                     }
-                    // If there are no remaining connections to the hidden node
-                    // it can be removed:
-                    it = nodes.erase(it);
                 }
             }
         }
@@ -445,17 +439,23 @@ private:
     // Propagate values through network one step
     void computeOneCycle(){
         for (int i = 0; i<connections.size(); i++) {
-            if (connections[i].expressed) {
-                nodes[connections[i].out].preVal +=
-                    nodes[connections[i].in].postVal *
-                    connections[i].weight;
+            if (connections.at(i).expressed) {
+                if (hasNode(connections.at(i).out) &&
+                    hasNode(connections.at(i).in))
+                {
+                    nodes.at(connections.at(i).out).preVal +=
+                        nodes.at(connections.at(i).in).postVal *
+                        connections.at(i).weight;
+                }
             }
         }
-        for(int i=0; i<nodes.size(); i++) {
-            if (nodes[i].type != Input) {
-                nodes[i].postVal = nodes[i].activationFunction(nodes[i].preVal);
+        for(int i=0; i<=nextNodeId; i++) {
+            if (hasNode(i)) {
+                if (nodes.at(i).type != Input) {
+                    nodes.at(i).postVal = nodes.at(i).activationFunction(nodes.at(i).preVal);
+                }
+                nodes.at(i).preVal = 0.0f;
             }
-            nodes[i].preVal = 0.0f;
         }
     }
 };
