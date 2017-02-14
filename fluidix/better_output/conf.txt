@@ -10,6 +10,7 @@ initialOrganismDimensions   = 1,1,1
 nGenomeInputs               = 4
 interactionRange            = 10.0
 moveFactor                  = 100
+moveCost					= 0.01
 repulsiveForce              = 300
 springForce                 = 150.0
 groundRepulsiveForce        = 100.0

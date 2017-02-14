@@ -68,7 +68,7 @@ FUNC_EACH(integrate,
 FUNC_EACH(handleEnergy,
     switch (p.particleType) {
     case Cell:
-        p.energy -= g.cellMetabolism * g.dt;
+        p.energy -= p.metabolism * g.dt;
         if (p.energy < g.minCellEnergy )
             turnIntoPellet(p)
         else if (p.energy > p.maxEnergy)
@@ -98,19 +98,19 @@ FUNC_EACH(boundary,
         //printf("Weird particle!!! type (%i:%i)\n", p.particleType, p.type);
         turnIntoBuffer(p);
         p.toBuffer = true;
-    } if (p.particleType != Buffer) {       
+    } if (p.particleType != Buffer) {
         if (p.r.x < 0)     p.r.x = g.w.x;
         if (p.r.x > g.w.x) p.r.x = 0;
         if (p.r.z < 0)     p.r.z = g.w.z;
         if (p.r.z > g.w.x) p.r.z = 0;
-        
+
         if (p.particleType == Energy) {
             if (p.r.y < 0) {
                 p.toBuffer = true;
             }
         }
         else {
-            if (p.r.y < 0) { 
+            if (p.r.y < 0) {
 				p.v.y = 0.9f * (0 - p.r.y) / g.dt;
 				p.r.y = 0;
 			}
@@ -321,6 +321,7 @@ int spawnOrganism(
         cell->organism = organismID;
         cell->r = origin + make_xyz(x, y, z);
         cell->energy = g.initialCellEnergy;
+        cell->metabolism = g.cellMetabolism * nerveSys.getSize();
         setDefaultCellValues(cell);
 
         vector<float> input;
@@ -349,6 +350,8 @@ int spawnOrganism(
     for (int i : removedCells)
         emptyCellPos(p, i);
 
+    nerveSys.updateInputs(nSensors);
+
     Organism organism = { genome, nerveSys, addedCells, -1};
 
     //Add organism to organism map
@@ -366,99 +369,29 @@ int spawnOrganism(
     Particle *p, int parent, OrganismMap *organisms)
 {
 	Genome genome;
-	
-	if(parent == -1){
-		int3 gridDim = g.initialOrganismDimensions; //genomes[iOrigin].gridDim;
+    NerveSystem nerveSys;
+
+	if(parent == -1) {
+		int3 gridDim = g.initialOrganismDimensions;
 
 		// Define number of in- and outputs
-		int inputs = g.nGenomeInputs;              // X, Y, Z, Dist
+		int inputs = g.nGenomeInputs;       // X, Y, Z, Dist
 		int nonCelltypeOutputs = 1;         // Cell existence
 		int outputs = N_CELL_TYPES + nonCelltypeOutputs;
 		genome = Genome(inputs, outputs, gridDim);
-		//g.mutate(); g.mutate(); g.mutate(); g.mutate(); g.mutate();
+
+        int nerveOutputs = 3;
+        nerveSys = NerveSystem(nerveOutputs);
 	}
 	else {
 		genome = Genome(organisms->at(parent).genome);
+        nerveSys = NerveSystem(organisms->at(parent).nerveSystem);
 	}
 
     genome.mutate();
-    
-    int nParticlesNeeded = genome.getMaxCellsReq();
-    if (nParticlesNeeded > particleBuffer->unsafe_size()) {
-        printf("Not enought particles in buffer\n");
-        return -1;
-    }
-    vector<int> cellBuff;
-    while (nParticlesNeeded) {
-        int particle;
-        if (particleBuffer->try_pop(particle)) {
-            cellBuff.push_back(particle);
-            nParticlesNeeded--;
-        }
-    }
+    nerveSys.mutate();
 
-    int3 br = genome.getBoundingRadius();
-
-    int organismID = currGenomeIndex++;
-    vector<int> removedCells;
-    vector<int> addedCells;
-    
-    int nSensors = 0;
-
-    for (int x = -br.x; x <= br.x; x++)
-    for (int y = -br.y; y <= br.y; y++)
-    for (int z = -br.z; z <= br.z; z++) {
-        Particle *cell = &p[iFromCoord(x, y, z)];
-        cell->organism = organismID;
-        cell->r = origin + make_xyz(x, y, z);
-        cell->energy = g.initialCellEnergy;
-        setDefaultCellValues(cell);
-
-        vector<float> input;
-        input.push_back(x);
-        input.push_back(y);
-        input.push_back(z);
-        input.push_back(xyz_len(make_xyz(x,y,z)));
-
-        vector<float> output = genome.getOutput(input);
-
-        if (applyPhenotype(output, cell)) {
-            cell->links[Left] = x + 1 < br.x ? iFromCoord(x + 1, y, z) : -1;
-            cell->links[Up] = y + 1 < br.y ? iFromCoord(x, y + 1, z) : -1;
-            cell->links[Back] = z + 1 < br.z ? iFromCoord(x, y, z + 1) : -1;
-            cell->links[Right] = x - 1 >= 0 ? iFromCoord(x - 1, y, z) : -1;
-            cell->links[Down] = y - 1 >= 0 ? iFromCoord(x, y - 1, z) : -1;
-            cell->links[Front] = z - 1 >= 0 ? iFromCoord(x, y, z - 1) : -1;
-
-            if (cell->type == Sense)
-                nSensors++;
-            addedCells.push_back(iFromCoord(x, y, z));
-        }
-        else
-            removedCells.push_back(iFromCoord(x, y, z));
-    }
-    for (int i : removedCells)
-        emptyCellPos(p, i);
-
-    NerveSystem nervSys;
-    if (parent == -1){
-        nervSys = NerveSystem(nSensors, 3);
-    } else {
-        nervSys = NerveSystem(organisms->at(parent).nerveSystem);
-        nervSys.updateInputs(nSensors);
-	}
-	
-	nervSys.mutate();
-	
-    Organism organism = { genome, nervSys, addedCells, parent };
-	
-	//Add organism to organism map
-    organisms->emplace(organismID, organism);
-	
-	//Output organism to disk
-	outputOrganism(&organism, organismID);
-
-    return organismID;
+    return spawnOrganism(origin, particleBuffer, p, genome, nerveSys, organisms);
 }
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
@@ -568,7 +501,7 @@ int main() {
     fx->applyParticleArray(pSet);
 
     int nReboots = 0;
-	
+
     for (int step = 0; step < g.nSteps; step++) {
         g.nEggs = 0;
         fx->runEach(boundary(), pSet);
@@ -603,19 +536,26 @@ int main() {
                 continue;
             }
             vector<float> output = o->nerveSystem.getOutput(inputs);
+            float nerveSizeTax = o->nerveSystem.getSize() * (0.01f / nLiving); //TODO: nLiving+nDead ???
+            //printf("nerveSizeTax %.0f\n", nerveSizeTax);
 
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 if (p[i].particleType == Cell){
                     p[i].f += f * g.moveFactor;
+                    //printf("Energy before: %.2f\t", p[i].energy);
+                    p[i].energy -= xyz_len(f) * g.moveCost;
+                    p[i].energy -= nerveSizeTax;
+                    //printf("Energy after: %.2f\n", p[i].energy);
                     p[i].signal *= 0.5f;
                 }
             }
             // Hatch eggs if they have enought energy:
             for (int i : eggs) {
-                int maxReqEnergy = 
-                    g.initialCellEnergy * 
-                    organisms.at(p[i].organism).genome.getMaxCellsReq();
+                int maxReqEnergy =
+                    g.initialCellEnergy *
+                    o->genome.getMaxCellsReq() +
+                    o->genome.getSize() * 0.1;
 
                 if (p[i].energy >= maxReqEnergy + g.initialCellEnergy) {
                     spawnOrganism(
@@ -640,7 +580,7 @@ int main() {
         {
             if (p[i].toBuffer) {
                 if (particleBuffer.unsafe_size() > g.bufferSize) {
-                    turnIntoEnergy(p[i]);                  
+                    turnIntoEnergy(p[i]);
                 } else {
                     turnIntoBuffer(p[i]);
                     particleBuffer.push(i);

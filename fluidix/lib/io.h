@@ -72,8 +72,9 @@ Global loadConfig(string path) {
         else if (str_eq(key,"nSteps"))                      g.nSteps = stoi(val);  
         else if (str_eq(key,"initialOrganismDimensions"))   g.initialOrganismDimensions = stoi3(val);  
         else if (str_eq(key,"nGenomeInputs"))               g.nGenomeInputs = stoi(val);  
-        else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);  
-        else if (str_eq(key,"moveFactor"))                  g.moveFactor = stoi(val);  
+        else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);
+        else if (str_eq(key, "moveFactor"))                 g.moveFactor = stoi(val);
+        else if (str_eq(key, "moveCost"))                   g.moveCost = stof(val);
         else if (str_eq(key,"repulsiveForce"))              g.repulsiveForce = stof(val);  
         else if (str_eq(key,"springForce"))                 g.springForce = stof(val);  
         else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);  

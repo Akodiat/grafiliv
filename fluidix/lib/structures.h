@@ -19,6 +19,7 @@ struct Global {
     int nGenomeInputs; //Inputs x,y,z,d
     float interactionRange;
     int moveFactor;
+    float moveCost;
     int repulsiveForce;
     float springForce; // spring constant
     float groundRepulsiveForce; // repulsive wall force
@@ -63,6 +64,7 @@ struct Particle {
     float energyOut;
     float maxEnergy;
     float signal;
+    float metabolism;
     int organism;
     bool toBuffer;
     int links[6];
