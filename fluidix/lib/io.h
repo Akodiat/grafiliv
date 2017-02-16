@@ -65,29 +65,29 @@ Global loadConfig(string path) {
         printf("parameter: %s, value: %s\n", key.c_str(), val.c_str());
 
         if      (str_eq(key,"dt"))                          g.dt = stof(val);
-        else if (str_eq(key,"w"))                           g.w = stoi3(val);  
-        else if (str_eq(key,"nParticles"))                  g.nParticles = stoi(val);  
-        else if (str_eq(key,"nInitialOrganisms"))           g.nInitialOrganisms = stoi(val);  
-        else if (str_eq(key,"bufferSize"))                  g.bufferSize = stoi(val);  
-        else if (str_eq(key,"nSteps"))                      g.nSteps = stoi(val);  
-        else if (str_eq(key,"initialOrganismDimensions"))   g.initialOrganismDimensions = stoi3(val);  
-        else if (str_eq(key,"nGenomeInputs"))               g.nGenomeInputs = stoi(val);  
+        else if (str_eq(key,"w"))                           g.w = stoi3(val);
+        else if (str_eq(key,"nParticles"))                  g.nParticles = stoi(val);
+        else if (str_eq(key,"nInitialOrganisms"))           g.nInitialOrganisms = stoi(val);
+        else if (str_eq(key,"bufferSize"))                  g.bufferSize = stoi(val);
+        else if (str_eq(key,"nSteps"))                      g.nSteps = stoi(val);
+        else if (str_eq(key,"initialOrganismDimensions"))   g.initialOrganismDimensions = stoi3(val);
+        else if (str_eq(key,"nGenomeInputs"))               g.nGenomeInputs = stoi(val);
         else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);
         else if (str_eq(key, "moveFactor"))                 g.moveFactor = stoi(val);
         else if (str_eq(key, "moveCost"))                   g.moveCost = stof(val);
-        else if (str_eq(key,"repulsiveForce"))              g.repulsiveForce = stof(val);  
-        else if (str_eq(key,"springForce"))                 g.springForce = stof(val);  
-        else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);  
-        else if (str_eq(key,"initialCellEnergy"))           g.initialCellEnergy = stof(val);  
-        else if (str_eq(key,"minCellEnergy"))               g.minCellEnergy = stof(val);  
-        else if (str_eq(key,"minPelletEnergy"))             g.minPelletEnergy = stof(val);  
+        else if (str_eq(key,"repulsiveForce"))              g.repulsiveForce = stoi(val);
+        else if (str_eq(key,"springForce"))                 g.springForce = stof(val);
+        else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);
+        else if (str_eq(key,"initialCellEnergy"))           g.initialCellEnergy = stof(val);
+        else if (str_eq(key,"minCellEnergy"))               g.minCellEnergy = stof(val);
+        else if (str_eq(key,"minPelletEnergy"))             g.minPelletEnergy = stof(val);
         else if (str_eq(key,"energyParticleEnergy"))        g.energyParticleEnergy = stof(val);
         else if (str_eq(key,"energyParticleRadius"))        g.energyParticleRadius = stof(val);
-        else if (str_eq(key,"cellExistenceThreshold"))      g.cellExistenceThreshold = stof(val);  
-        else if (str_eq(key,"cellMetabolism"))              g.cellMetabolism = stof(val);  
-        else if (str_eq(key,"cellDecayRate"))               g.cellDecayRate = stof(val);  
-        else if (str_eq(key,"fluidDensity"))                g.fluidDensity = stof(val);  
-        else if (str_eq(key,"gravity"))                     g.gravity = stof(val);  
+        else if (str_eq(key,"cellExistenceThreshold"))      g.cellExistenceThreshold = stof(val);
+        else if (str_eq(key,"cellMetabolism"))              g.cellMetabolism = stof(val);
+        else if (str_eq(key,"cellDecayRate"))               g.cellDecayRate = stof(val);
+        else if (str_eq(key,"fluidDensity"))                g.fluidDensity = stof(val);
+        else if (str_eq(key,"gravity"))                     g.gravity = stof(val);
     }
 
     file.close();

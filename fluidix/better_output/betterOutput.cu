@@ -288,14 +288,13 @@ int getIdxFromCoord(int x, int y, int z, int3 br)
 }
 #define iFromCoord(x,y,z) cellBuff.at(getIdxFromCoord(x,y,z,br))
 
-int spawnOrganism(
+pair<int, vector<int>> createCellsFromGenotype(
     xyz origin, ParticleBuffer *particleBuffer,
-    Particle *p, Genome genome, NerveSystem nerveSys, OrganismMap *organisms)
+    Particle *p, Genome *genome, NerveSystem *nerveSys, OrganismMap *organisms)
 {
-    int nParticlesNeeded = genome.getMaxCellsReq();
+    int nParticlesNeeded = genome->getMaxCellsReq();
     if (nParticlesNeeded > particleBuffer->unsafe_size()) {
-        printf("Not enought particles in buffer\n");
-        return -1;
+        cerr << "Not enought particles in buffer\n" << endl;
     }
     vector<int> cellBuff;
     while (nParticlesNeeded) {
@@ -306,7 +305,7 @@ int spawnOrganism(
         }
     }
 
-    int3 br = genome.getBoundingRadius();
+    int3 br = genome->getBoundingRadius();
 
     int organismID = currGenomeIndex++;
     vector<int> removedCells;
@@ -321,7 +320,7 @@ int spawnOrganism(
         cell->organism = organismID;
         cell->r = origin + make_xyz(x, y, z);
         cell->energy = g.initialCellEnergy;
-        cell->metabolism = g.cellMetabolism * nerveSys.getSize();
+        cell->metabolism = g.cellMetabolism * (1 + nerveSys->getSize());
         setDefaultCellValues(cell);
 
         vector<float> input;
@@ -330,7 +329,7 @@ int spawnOrganism(
         input.push_back(z);
         input.push_back(xyz_len(make_xyz(x, y, z)));
 
-        vector<float> output = genome.getOutput(input);
+        vector<float> output = genome->getOutput(input);
 
         if (applyPhenotype(output, cell)) {
             cell->links[Left] = x + 1 < br.x ? iFromCoord(x + 1, y, z) : -1;
@@ -350,9 +349,23 @@ int spawnOrganism(
     for (int i : removedCells)
         emptyCellPos(p, i);
 
-    nerveSys.updateInputs(nSensors);
+    nerveSys->updateInputs(nSensors);
 
-    Organism organism = { genome, nerveSys, addedCells, -1};
+    return pair<int, vector<int>>(organismID, addedCells);
+}
+
+//Initialize new organism (without parent)
+int spawnOrganism(
+    xyz origin, ParticleBuffer *particleBuffer,
+    Particle *p, Genome genome, NerveSystem nerveSys, OrganismMap *organisms)
+{
+    pair<int, vector<int>> o = createCellsFromGenotype(
+        origin, particleBuffer, p, &genome, &nerveSys, organisms
+    );
+    int organismID    = o.first;
+    vector<int> cells = o.second;
+
+    Organism organism = { genome, nerveSys, cells, -1 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -363,7 +376,7 @@ int spawnOrganism(
     return organismID;
 }
 
-// Initialize new organism
+// Initialize new organism from parent
 int spawnOrganism(
     xyz origin, ParticleBuffer *particleBuffer,
     Particle *p, int parent, OrganismMap *organisms)
@@ -391,7 +404,21 @@ int spawnOrganism(
     genome.mutate();
     nerveSys.mutate();
 
-    return spawnOrganism(origin, particleBuffer, p, genome, nerveSys, organisms);
+    pair<int, vector<int>> o = createCellsFromGenotype(
+        origin, particleBuffer, p, &genome, &nerveSys, organisms
+        );
+    int organismID    = o.first;
+    vector<int> cells = o.second;
+
+    Organism organism = { genome, nerveSys, cells, parent };
+
+    //Add organism to organism map
+    organisms->emplace(organismID, organism);
+
+    //Output organism to disk
+    outputOrganism(&organism, organismID);
+
+    return organismID;
 }
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
