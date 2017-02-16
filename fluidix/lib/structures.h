@@ -20,6 +20,8 @@ struct Global {
     float interactionRange;
     int moveFactor;
     float moveCost;
+    float genomeCost;
+    float nerveCost;
     int repulsiveForce;
     float springForce; // spring constant
     float groundRepulsiveForce; // repulsive wall force

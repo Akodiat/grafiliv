@@ -75,6 +75,8 @@ Global loadConfig(string path) {
         else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);
         else if (str_eq(key, "moveFactor"))                 g.moveFactor = stoi(val);
         else if (str_eq(key, "moveCost"))                   g.moveCost = stof(val);
+        else if (str_eq(key, "nerveCost"))                  g.nerveCost = stof(val);
+        else if (str_eq(key, "genomeCost"))                 g.genomeCost = stof(val);
         else if (str_eq(key,"repulsiveForce"))              g.repulsiveForce = stoi(val);
         else if (str_eq(key,"springForce"))                 g.springForce = stof(val);
         else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);

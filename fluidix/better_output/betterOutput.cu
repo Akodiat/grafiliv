@@ -320,7 +320,7 @@ pair<int, vector<int>> createCellsFromGenotype(
         cell->organism = organismID;
         cell->r = origin + make_xyz(x, y, z);
         cell->energy = g.initialCellEnergy;
-        cell->metabolism = g.cellMetabolism * (1 + nerveSys->getSize());
+        cell->metabolism = g.cellMetabolism + g.nerveCost * nerveSys->getSize();
         setDefaultCellValues(cell);
 
         vector<float> input;
@@ -438,7 +438,7 @@ int generateTerrain(Fluidix<> *fx){
     float dx = g.w.x / (terrDimX-1);
     float dz = g.w.z / (terrDimZ-1);
 
-    float margin = 1.2;
+    float margin = 1.2f;
     float shiftX = ((margin - 1)*g.w.x) / 2;
     float shiftZ = ((margin - 1)*g.w.z) / 2;
 
@@ -563,8 +563,6 @@ int main() {
                 continue;
             }
             vector<float> output = o->nerveSystem.getOutput(inputs);
-            float nerveSizeTax = o->nerveSystem.getSize() * (0.01f / nLiving); //TODO: nLiving+nDead ???
-            //printf("nerveSizeTax %.0f\n", nerveSizeTax);
 
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
@@ -572,7 +570,6 @@ int main() {
                     p[i].f += f * g.moveFactor;
                     //printf("Energy before: %.2f\t", p[i].energy);
                     p[i].energy -= xyz_len(f) * g.moveCost;
-                    p[i].energy -= nerveSizeTax;
                     //printf("Energy after: %.2f\n", p[i].energy);
                     p[i].signal *= 0.5f;
                 }
@@ -582,7 +579,7 @@ int main() {
                 int maxReqEnergy =
                     g.initialCellEnergy *
                     o->genome.getMaxCellsReq() +
-                    o->genome.getSize() * 0.1;
+                    o->genome.getSize() * g.genomeCost;
 
                 if (p[i].energy >= maxReqEnergy + g.initialCellEnergy) {
                     spawnOrganism(

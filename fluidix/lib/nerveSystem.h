@@ -15,7 +15,7 @@ using namespace std;
 class NerveSystem {
 
 public:
-    enum NodeType { Input, Hidden, Output };
+    enum NodeType { Input, Hidden, Output, Bias };
 
     struct Node {
         NodeType type;
@@ -28,7 +28,7 @@ public:
 
     Node(){}
 
-        float activationFunction(float x) {
+    float activationFunction(float x) {
         return x / (1.0f + abs(x));
         }
     };
@@ -49,8 +49,10 @@ public:
     // Create nervous system, specifying number of input and output nodes
     NerveSystem(int nOut) {
         nOutputs = nOut;
-    nInputs = 0;
-    nextNodeId = 0;
+        nInputs = 0;
+        nextNodeId = 0;
+
+        nodes.emplace(nextNodeId++, Node(Bias));
 
         // Add output nodes
         for(int i=0; i<nOut; i++) {
@@ -249,7 +251,7 @@ private:
     // Mutate each connection with small pertubation
     void mutateConnections() {
         uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
-        normal_distribution<float> rndNormal(0.0f, 1.0f);
+        normal_distribution<float> rndNormal(0.0f, 0.1f);
         for(int i=0; i<connections.size(); i++)
             if (rndUniform(rndGen) < MUTATION_PROB)
                 connections.at(i).weight *= rndNormal(rndGen);
@@ -264,6 +266,9 @@ private:
                 if (hasNode(i)) {
                     switch (nodes.at(i).type) {
                     case Input:
+                        sources.push_back(i);
+                        break;
+                    case Bias:
                         sources.push_back(i);
                         break;
                     case Output:
@@ -380,7 +385,10 @@ private:
         }
         for(int i=0; i<=nextNodeId; i++) {
             if (hasNode(i)) {
-                if (nodes.at(i).type != Input) {
+                if (nodes.at(i).type == Bias){
+                    nodes.at(i).postVal = 1.0f;
+                }
+                else if (nodes.at(i).type != Input) {
                     nodes.at(i).postVal = nodes.at(i).activationFunction(nodes.at(i).preVal);
                 }
                 nodes.at(i).preVal = 0.0f;

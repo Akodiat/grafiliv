@@ -303,7 +303,7 @@ private:
     // Mutate each connection with small pertubation
     void mutateConnections() {
         uniform_real_distribution<float> rndUniform(0.0f, 1.0f);
-        normal_distribution<float> rndNormal(0.0f, 1.0f);
+        normal_distribution<float> rndNormal(0.0f, 0.1f);
         for(int i=0; i<connections.size(); i++)
             if (rndUniform(rndGen) < MUTATION_PROB)
                 connections.at(i).weight *= rndNormal(rndGen);
