@@ -19,7 +19,7 @@ public class OrgInspector : MonoBehaviour {
     private List<Connection> connections = new List<Connection>();
 
     private static int trimRadius = 25;
-    private static int springDistance = 150;
+    private static int springDistance = 200;
 
 	// Use this for initialization
 	void Start () {
@@ -184,7 +184,7 @@ public class OrgInspector : MonoBehaviour {
 
             SpringJoint2D spring = node1.getGameObject().AddComponent<SpringJoint2D>();
             spring.connectedBody = node2.getGameObject().GetComponent<Rigidbody2D>();
-            spring.distance = springDistance / Mathf.Abs(weight);
+            spring.distance = springDistance;
         }
 
         public Node getNode1() { return node1; }
