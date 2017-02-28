@@ -29,6 +29,7 @@ public class Load : MonoBehaviour {
     public Material mPellet;
 
     public Toggle inspectToggle;
+    public Toggle recordToggle;
 
     public Text eggCounter;
 
@@ -41,7 +42,7 @@ public class Load : MonoBehaviour {
     private List<GameObject> particles = new List<GameObject>();
 
     private FileInfo[] files;
-    private DirectoryInfo dir;
+    private DirectoryInfo recordDir;
 
     private List<Vector3> GetOrgPositions(Particle[] ps, int orgID)
     {
@@ -79,6 +80,8 @@ public class Load : MonoBehaviour {
 	void Start () {
         //dir = new DirectoryInfo("output");
         //files = dir.GetFiles();
+        recordDir = Directory.CreateDirectory(Application.dataPath + "/record");
+
         frame = 0;
 
         string line;   
@@ -120,6 +123,8 @@ public class Load : MonoBehaviour {
         {
             frame = newFrame;
             Refresh();
+            if (recordToggle.isOn)
+                Application.CaptureScreenshot(recordDir.FullName+"/frame"+frame+".png");
         }
     }
 
