@@ -8,23 +8,27 @@
 #include <queue>
 #include <ppl.h>
 
+// Transfer amount f from a to b
 #define transmitFloat(a, b, f) {addFloat(a, -f); addFloat(b, f);}
+
+// Check if particle position is defined correctly
 #define isWeirdParticle(p) (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z)
 #define isWeirdParticlePointer(p) (p->r.x != p->r.x || p->r.y != p->r.y || p->r.z != p->r.z)
 
 using namespace std;
 using namespace concurrency;
 
-
 int currGenomeIndex;
 
+// Turn a particle into pellet (dead cell) type
+// Previous energy is preserved
 #define turnIntoPellet(p) {         \
     p.particleType = Pellet;        \
     p.density = g.fluidDensity * 2; \
-    p.alpha = 0.5f;                 \
     p.organism = -1;                \
 }                                   \
 
+// Turn a particle into energy type
 #define turnIntoEnergy(p) {            \
     p.particleType = Energy;           \
     p.r = make_xyz(                    \
@@ -35,11 +39,12 @@ int currGenomeIndex;
     p.color = 0.7f;                    \
     p.energy = g.energyParticleEnergy; \
     p.signal = 0.0f;                   \
-    p.alpha = 0.3f;                    \
     p.radius = g.energyParticleRadius; \
     p.density = 10.0f;                 \
 }
 
+// Turn a pasticle into buffer type
+// Place below arena
 #define turnIntoBuffer(p) {            \
     p.particleType = Buffer;           \
     p.r = make_xyz(                    \
@@ -48,16 +53,19 @@ int currGenomeIndex;
         rnd_uniform() * g.w.z          \
     );                                 \
     p.density = g.fluidDensity * 2;    \
-    p.alpha = 0.1f;                    \
     p.color = 0.5f;                    \
     p.radius = 1.0f;                   \
     p.organism = -1;                   \
 }
 
+// Initialization function
+// Turn all particles into energy particles
 FUNC_EACH(init,
     turnIntoEnergy(p);
 )
 
+// Update position r of particles given
+// velocity v and force f
 FUNC_EACH(integrate,
     p.v += p.f * g.dt;
     p.r += p.v * g.dt;
@@ -65,6 +73,9 @@ FUNC_EACH(integrate,
     p.v *= 0.97f;
 )
 
+// Decrease energy through metabolism in
+// cells and decay in pellets.
+// cell --> pellet --> buffer
 FUNC_EACH(handleEnergy,
     switch (p.particleType) {
     case Cell:
@@ -82,20 +93,17 @@ FUNC_EACH(handleEnergy,
     }
 )
 
+// Particles float depending on their density
 FUNC_EACH(buoyancy,
     float volume = p.radius * p.radius * PI;
     p.f.y += (p.density - g.fluidDensity) * g.gravity * volume;
 )
 
 
-// bouncing hard wall boundary condition
+// Periodic boundary conditions
 FUNC_EACH(boundary,
-    if (p.particleType == Cell && p.type == Egg)
-        addInteger(g.nEggs, 1);
-
     // Check for wierd 1.#R values... NaN?
     if (isWeirdParticle(p)) {
-        //printf("Weird particle!!! type (%i:%i)\n", p.particleType, p.type);
         turnIntoBuffer(p);
         p.toBuffer = true;
     } if (p.particleType != Buffer) {
@@ -123,12 +131,14 @@ FUNC_EACH(boundary,
     else if (p.r.y < -2 * g.w.y) p.r.y += g.w.y;
 )
 
+// Let particle a eat particle b
 #define consumeParticle(a, b) {      \
     addFloat(a.energy, b.energy);    \
     b.energy = 0;                    \
     b.toBuffer = true;               \
 }
 
+// For each particle within a predifined distance
 FUNC_PAIR(particlePair,
     if (p1.particleType != Buffer && p2.particleType != Buffer) {
         xyz f = u * maxf(
@@ -192,6 +202,7 @@ FUNC_PAIR(particlePair,
     }
 )
 
+// Collision with terrain
 FUNC_SURFACE(collideGround,
 	if (p.particleType != Energy){
 		if (dr > 1) dr = 1;
@@ -199,14 +210,15 @@ FUNC_SURFACE(collideGround,
 	}
 )
 
+// Initialize particle as cell
 void setDefaultCellValues(Particle *cell) {
-    cell->alpha = 1.0f;
     cell->radius = 1.0f;
     cell->energy = g.initialCellEnergy;
     cell->density = g.fluidDensity * 1.10f;
     cell->particleType = Cell;
 }
 
+// Given a phenotype network output, apply it to the cell
 bool applyPhenotype(vector<float> output, Particle *cell) {
     // If cell should not exist, return
     if (output[N_CELL_TYPES] < g.cellExistenceThreshold)
@@ -264,6 +276,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     return true;
 }
 
+// Remove cell links from and to cell
 void disconnectCell(Particle *p, int cell, int code) {
     for (int i = 0; i < 6; i++) {
         if (p[cell].links[i] >= 0)
@@ -278,16 +291,18 @@ void deadCellPos(Particle *p, int cell) {
     disconnectCell(p, cell, -2);
 }
 
+// Helper function to get the 1-dimensional index
+// given x,y,z and box size br
 int getIdxFromCoord(int x, int y, int z, int3 br)
 {
     x += br.x; y += br.y; z += br.z;
-    //int lX = 2 * br.z + 1;
     int lY = 2 * br.y + 1;
     int lZ = 2 * br.z + 1;
     return x*lY*lZ + y*lZ + z;
 }
 #define iFromCoord(x,y,z) cellBuff.at(getIdxFromCoord(x,y,z,br))
 
+// Create cells of an organism given a genome and a nervous system
 pair<int, vector<int>> createCellsFromGenotype(
     xyz origin, ParticleBuffer *particleBuffer,
     Particle *p, Genome *genome, NerveSystem *nerveSys, OrganismMap *organisms)
@@ -479,6 +494,7 @@ int generateTerrain(Fluidix<> *fx){
     return meshLinks;
 }
 
+// Initialize a random organism
 int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap *organisms)
 {
     xyz origin = make_xyz_uniform() * int3_to_xyz(g.w);
@@ -489,20 +505,24 @@ int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap 
 }
 
 int main() {
-
+    // Create Fluidix library object
     Fluidix<> *fx = new Fluidix<>(&g);
 
+    // Load configuration file
     g = loadConfig("conf.txt");
 
+    // Create a particle set with number of particles
+    // equal to g.nParticles
     int pSet = fx->createParticleSet(g.nParticles);
 
     //int terrain = generateTerrain(fx);
 
     currGenomeIndex = 0;
-    g.nEggs = 0;
     OrganismMap organisms;
 
+    // Initialize all particles
     fx->runEach(init(), pSet);
+
     ParticleBuffer particleBuffer;
     Particle *p = fx->getParticleArray(pSet);
 
@@ -513,6 +533,7 @@ int main() {
         g.nInitialOrganisms +
         g.bufferSize;
 
+    // Turn a large enought number of the particles into buffer
     for (int i = 0; i < initialBufferSize; i++) {
         turnIntoBuffer(p[i]);
         p[i].r.y -= g.w.y;
@@ -520,21 +541,19 @@ int main() {
     }
 
     loadOrg("initOrg.json", &particleBuffer, p, &organisms);
-    /*
-    for (int i = 0; i < g.nInitialOrganisms; i++) {
-        initializeOrganism(&particleBuffer, p, &organisms);
-    }
-    */
+
+    //for (int i = 0; i < g.nInitialOrganisms; i++) {
+    //    initializeOrganism(&particleBuffer, p, &organisms);
+    //}
+
     fx->applyParticleArray(pSet);
 
     int nReboots = 0;
 
     for (int step = 0; step < g.nSteps; step++) {
-        g.nEggs = 0;
         fx->runEach(boundary(), pSet);
         //fx->runSurface(collideGround(), terrain, pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
-
 
         p = fx->getParticleArray(pSet);
         vector<int> organismsToRemove;
@@ -618,15 +637,13 @@ int main() {
 
         if (step % 10 == 0) {// && step > 1000000
 			//|| step % 10000 == 0) {
-            printf("nEggs: %i\t", g.nEggs);
+            printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("nReboots: %i\t", nReboots);
             printf("step %d\n", step);
             //if (currGenomeIndex - g.nInitialOrganisms - nReboots > 0)
                 outputParticles(p, g.nParticles, step);
         }
-
-        if (!g.nEggs) break;
     }
     delete fx;
 

@@ -7,8 +7,6 @@
 #include <unordered_map>
 
 struct Global {
-    int nEggs;
-
     float dt; // integration time-step
     int3 w;
     int nParticles;
