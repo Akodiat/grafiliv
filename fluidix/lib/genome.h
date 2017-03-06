@@ -14,7 +14,7 @@ default_random_engine rndGen(time(0));
 
 class Genome {
 public:
-    enum NodeType { Input, Hidden, Output };
+    enum NodeType { Input, Hidden, Output, Bias };
     enum ActivationFunction {
         Sine, Abs, Id, Mod, Gaus,
         N_ACTIVATION_FUNCTIONS
@@ -82,6 +82,10 @@ public:
         for (int i = 0; i<nIn; i++) {
             nodes.emplace(nextNodeId++, Node(Input));
         }
+
+        nodes.emplace(nextNodeId++, Node(Bias));
+
+
         // Add output nodes and connect them to each input node
         for (int i = 0; i<nOut; i++) {
             int out = nextNodeId++;
@@ -320,6 +324,9 @@ private:
                     case Input:
                         sources.push_back(i);
                         break;
+                    case Bias:
+                        sources.push_back(i);
+                        break;
                     case Output:
                         recievers.push_back(i);
                         break;
@@ -451,7 +458,10 @@ private:
         }
         for(int i=0; i<=nextNodeId; i++) {
             if (hasNode(i)) {
-                if (nodes.at(i).type != Input) {
+                if (nodes.at(i).type == Bias){
+                    nodes.at(i).postVal = 1.0f;
+                }
+                else if (nodes.at(i).type != Input) {
                     nodes.at(i).postVal = nodes.at(i).activationFunction(nodes.at(i).preVal);
                 }
                 nodes.at(i).preVal = 0.0f;

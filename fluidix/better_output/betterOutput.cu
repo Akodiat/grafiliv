@@ -231,6 +231,10 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
             cell->type = (CellType)j;
         }
     }
+    // If no outputs had a positive value, return
+    if (max <= 0) {
+        return false;
+    }
     switch (cell->type) {
     case Photo:
         cell->energyIn = 0.01f;
@@ -380,7 +384,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1 };
+    Organism organism = { genome, nerveSys, cells, -1, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -425,7 +429,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent };
+    Organism organism = { genome, nerveSys, cells, parent, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -559,6 +563,9 @@ int main() {
         vector<int> organismsToRemove;
         for (auto& iOrg : organisms) {
             Organism *o = &iOrg.second;
+
+            o->health -= g.dt;
+
             vector<float> inputs;
             vector<int> eggs;
             int nLiving = 0;
@@ -574,7 +581,7 @@ int main() {
                 else
                 nDead++;
             }
-            if (nDead > nLiving) {
+            if (o->health <= 0 || nDead > nLiving) {
                 for (int i : o->cells)
                 if (p[i].particleType == Cell)
                     turnIntoPellet(p[i]);
@@ -643,6 +650,11 @@ int main() {
             printf("step %d\n", step);
             //if (currGenomeIndex - g.nInitialOrganisms - nReboots > 0)
                 outputParticles(p, g.nParticles, step);
+        }
+
+        if (organisms.size() == 0) {
+            printf("All organisms died. End of simulation\n");
+            break;
         }
     }
     delete fx;

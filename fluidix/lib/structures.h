@@ -40,6 +40,7 @@ struct Organism {
     NerveSystem nerveSystem;
     vector<int> cells;
     int parent;
+    float health;
 };
 
 enum CellType {
