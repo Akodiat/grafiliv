@@ -223,6 +223,8 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     // If cell should not exist, return
     if (output[N_CELL_TYPES] < g.cellExistenceThreshold)
         return false;
+    float radius = output[N_CELL_TYPES + 1];
+    cell->radius = clamp(radius, 0.5f, 2.0f);
 
     float max = output[0]; cell->type = (CellType)0;
     for (int j = 1; j<N_CELL_TYPES; j++) {
@@ -408,7 +410,7 @@ int spawnOrganism(
 
 		// Define number of in- and outputs
 		int inputs = g.nGenomeInputs;       // X, Y, Z, Dist
-		int nonCelltypeOutputs = 1;         // Cell existence
+		int nonCelltypeOutputs = 2;         // Cell existence, cell radius
 		int outputs = N_CELL_TYPES + nonCelltypeOutputs;
 		genome = Genome(inputs, outputs, gridDim);
 

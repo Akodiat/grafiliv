@@ -16,22 +16,49 @@ class NerveSystem {
 
 public:
     enum NodeType { Input, Hidden, Output, Bias };
-
+    enum ActivationFunction {
+        Sine, Abs, Id, Mod, Gaus,
+        N_ACTIVATION_FUNCTIONS
+    };
     struct Node {
         NodeType type;
+        ActivationFunction f;
         float preVal;
         float postVal;
 
         Node(NodeType t) :
             type(t), preVal(0.0f), postVal(0.0f)
-        {}
+        {
+            uniform_int_distribution<int> rndInt(0, N_ACTIVATION_FUNCTIONS - 1);
+            f = ActivationFunction(rndInt(rndGen));
+        }
 
-    Node(){}
+        Node(NodeType t, ActivationFunction func)
+            //: type(t), preVal(0.0f), postVal(0.0f), f(func)
+        {
+            type = t;
+            f = func;
+            preVal = 0.0f;
+            postVal = 0.0f;
+        }
 
-    float activationFunction(float x) {
-        return x / (1.0f + abs(x));
+        Node(){}
+
+        float activationFunction(float x) {
+            switch (f) {
+            case Sine:  return sin(x);
+            case Abs:   return clamp(1.0f - abs(x), -1, 1);
+            case Gaus:  return exp(-(x*x) / 2);
+            case Id:    return clamp(x, -1, 1);
+            case Mod:   return fmod(x, 1);
+            default:
+                //throw invalid_argument("Incorrect activation function");
+                cerr << "Activation function " << f << " not set\n" << endl;
+                return NULL;
+            }
         }
     };
+
     struct Connection {
         int in;
         int out;
@@ -64,7 +91,7 @@ public:
         // Extraction of several sub-matches
         regex vertices_regex("\"vertices\":\\[(.*?)\\]");
         regex links_regex("\"links\":\\[(.*?)\\]");
-        regex vertex_regex("\"i\":(\\d+),\"type\":(\\d+)");
+        regex vertex_regex("\"i\":(\\d+),\"type\":(\\d+),\"f\":(\\d+)");
         regex link_regex("\"i\":(\\d+),\"o\":(\\d+),\"w\":(-?\\d+(.\\d+)?)");
 
         smatch match;
@@ -78,13 +105,15 @@ public:
         while (regex_search(vertices, match, vertex_regex)){
             ssub_match idMatch = match[1];
             ssub_match typeMatch = match[2];
+            ssub_match fMatch = match[3];
 
             NodeType type = (NodeType)stoi(typeMatch.str());
             int id = stoi(idMatch.str());
+            ActivationFunction f = (ActivationFunction)stoi(fMatch.str());
 
             if (id > nextNodeId) nextNodeId = id;
 
-            Node node(type);
+            Node node(type, f);
             nodes.emplace(id, node);
 
             vertices = match.suffix().str();
@@ -205,6 +234,8 @@ public:
                     to_string(i) +
                     ",\"type\":" +
                     to_string(nodes.at(i).type) +
+                    ",\"f\":" +
+                    to_string(nodes.at(i).f) +
                     "}";
             }
         }
@@ -237,11 +268,13 @@ private:
     static int currInnovNumber;
     int nextNodeId = 0;
 
+    int clock = 0;
+
     int nInputs;
     int nOutputs;
 
     // Number of times to propagate values
-    int nActivationCycles = 10;
+    int nActivationCycles = 1;
 
     // Returns true if node with id i exists
     bool hasNode(int i){
@@ -386,7 +419,7 @@ private:
         for(int i=0; i<=nextNodeId; i++) {
             if (hasNode(i)) {
                 if (nodes.at(i).type == Bias){
-                    nodes.at(i).postVal = 1.0f;
+                    nodes.at(i).postVal = sin(clock += 0.1f);
                 }
                 else if (nodes.at(i).type != Input) {
                     nodes.at(i).postVal = nodes.at(i).activationFunction(nodes.at(i).preVal);

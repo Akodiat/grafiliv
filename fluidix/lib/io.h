@@ -187,11 +187,12 @@ void outputParticles(Particle *p, int nParticles, int step) {
             }
             fprintf(out,
                 //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
+                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"r\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
                 (int)p[i].particleType,
                 (int)p[i].type,
                 p[i].organism,
                 p[i].energy,
+                p[i].radius,
                 p[i].r.x, p[i].r.y, p[i].r.z
                 );
         }

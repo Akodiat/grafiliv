@@ -103,6 +103,9 @@ public class Load : MonoBehaviour {
 
             GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
             MeshRenderer renderer = particle.GetComponent(typeof(MeshRenderer)) as MeshRenderer;
+            Transform transform = particle.GetComponent(typeof(Transform)) as Transform;
+
+            transform.localScale = 2 * new Vector3(p[i].r, p[i].r, p[i].r);
                 
             if (p[i].pt == ParticleType.Cell)
             {
@@ -174,6 +177,9 @@ public class Load : MonoBehaviour {
             }
 
             MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
+            Transform transform = particles[i].GetComponent(typeof(Transform)) as Transform;
+            transform.localScale = 2 * new Vector3(p[i].r, p[i].r, p[i].r);
+
             if (p[i].pt == ParticleType.Cell)
             {
                 renderer.material = getMaterial(p[i].ct);
@@ -230,6 +236,7 @@ public class Particle
     public CellType ct;
     public int o;
     public float e;
+    public float r;
     public float x;
     public float y;
     public float z;
