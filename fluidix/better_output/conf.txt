@@ -1,7 +1,7 @@
 ; This is a comment
 dt                          = 0.01			; Timestep size
-w                           = 300,100,300	; World size
-nParticles                  = 50000
+w                           = 200,100,200	; World size
+nParticles                  = 100000
 nInitialOrganisms           = 1000
 bufferSize                  = 1000
 nSteps                      = 100000000
@@ -9,9 +9,9 @@ initialOrganismDimensions   = 1,1,1
 nGenomeInputs               = 4
 interactionRange            = 10.0
 moveFactor                  = 10
-moveCost					= 0.01
+moveCost					= 0.001
 genomeCost					= 0.5
-nerveCost					= 0.01
+nerveCost					= 0.001
 repulsiveForce              = 300
 springForce                 = 150.0
 groundRepulsiveForce        = 100.0

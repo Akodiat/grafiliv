@@ -341,7 +341,8 @@ pair<int, vector<int>> createCellsFromGenotype(
         cell->organism = organismID;
         cell->r = origin + make_xyz(x, y, z);
         cell->energy = g.initialCellEnergy;
-        cell->metabolism = g.cellMetabolism + g.nerveCost * nerveSys->getSize();
+        cell->metabolism = g.cellMetabolism +
+            g.nerveCost * nerveSys->getSize();
         setDefaultCellValues(cell);
 
         vector<float> input;
@@ -362,6 +363,9 @@ pair<int, vector<int>> createCellsFromGenotype(
 
             if (cell->type == Sense)
                 nSensors++;
+
+            float volume = cell->radius * cell->radius * cell->radius * PI * 4 / 3;
+            cell->metabolism += volume * 0.01;
             addedCells.push_back(iFromCoord(x, y, z));
         }
         else
@@ -386,7 +390,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 1000 };
+    Organism organism = { genome, nerveSys, cells, -1, 5000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -431,7 +435,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 1000 };
+    Organism organism = { genome, nerveSys, cells, parent, 5000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
