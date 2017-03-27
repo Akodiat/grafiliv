@@ -4,6 +4,7 @@
 #include "../lib/structures.h"
 #include "../lib/genome.h"
 #include "../lib/nerveSystem.h"
+#include "../lib/linearAlgebra.h"
 #include "../lib/io.h"
 #include <queue>
 #include <ppl.h>
@@ -241,12 +242,12 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     case Photo:
         cell->energyIn = 0.01f;
         cell->energyOut = 0.6f;
-        cell->maxEnergy = 3.0f;
+        cell->maxEnergy = 5.0f;
         break;
     case Digest:
         cell->energyIn = 0.01f;
         cell->energyOut = 0.6f;
-        cell->maxEnergy = 3.0f;
+        cell->maxEnergy = 5.0f;
         break;
     case Fat:
         cell->energyIn = 1.0f;
@@ -256,7 +257,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     case Sense:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
+        cell->maxEnergy = 5.0f;
         break;
     case Egg:
         cell->energyIn = 1.0f;
@@ -266,17 +267,17 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     case Vascular:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.2f;
-        cell->maxEnergy = 1.0f;
+        cell->maxEnergy = 3.0f;
         break;
     case Sting:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
+        cell->maxEnergy = 5.0f;
         break;
     default:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
+        cell->maxEnergy = 5.0f;
     }
 
     return true;
@@ -365,7 +366,7 @@ pair<int, vector<int>> createCellsFromGenotype(
                 nSensors++;
 
             float volume = cell->radius * cell->radius * cell->radius * PI * 4 / 3;
-            cell->metabolism += volume * 0.01;
+            cell->metabolism += volume * 0.05;
             addedCells.push_back(iFromCoord(x, y, z));
         }
         else
@@ -390,7 +391,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 5000 };
+    Organism organism = { genome, nerveSys, cells, -1, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -435,7 +436,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 5000 };
+    Organism organism = { genome, nerveSys, cells, parent, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -512,6 +513,14 @@ int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap 
     origin.y += g.w.y / 2;
 
     return spawnOrganism(origin, particleBuffer, p, -1, organisms);
+}
+
+Matrix3 getTransform(xyz front, xyz right, xyz up, xyz back, xyz left, xyz down) {
+    return Matrix3(
+        xyz_norm(right - left),
+        xyz_norm(up - down),
+        xyz_norm(front - back)
+    );
 }
 
 int main() {
@@ -599,7 +608,23 @@ int main() {
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 if (p[i].particleType == Cell){
-                    p[i].f += f * g.moveFactor;
+                    xyz front = p[i].links[Front] >= 0 ? p[p[i].links[Front]].r : make_xyz(0, 0, 1);
+                    xyz right = p[i].links[Right] >= 0 ? p[p[i].links[Right]].r : make_xyz(1, 0, 0);
+                    xyz up = p[i].links[Up] >= 0 ? p[p[i].links[Up]].r : make_xyz(0, 1, 0);
+                    xyz back = p[i].links[Back] >= 0 ? p[p[i].links[Back]].r : make_xyz(0, 0, -1);
+                    xyz left = p[i].links[Left] >= 0 ? p[p[i].links[Left]].r : make_xyz(-1, 0, 0);
+                    xyz down = p[i].links[Down] >= 0 ? p[p[i].links[Down]].r : make_xyz(0, -1, 0);
+
+
+                    Matrix3 m = getTransform(
+                        front - p[i].r,
+                        right - p[i].r,
+                        up - p[i].r,
+                        back - p[i].r,
+                        left - p[i].r,
+                        down - p[i].r
+                    );
+                    p[i].f += m.dot(f) * g.moveFactor;
                     //printf("Energy before: %.2f\t", p[i].energy);
                     p[i].energy -= xyz_len(f) * g.moveCost;
                     //printf("Energy after: %.2f\n", p[i].energy);

@@ -1,7 +1,7 @@
 #ifndef GENOME_H
 #define GENOME_H
 
-#define MUTATION_PROB 0.01f
+#define MUTATION_PROB 0.001f
 
 #include <random>
 #include <time.h>

@@ -1,7 +1,7 @@
 #ifndef NERVE_SYSTEM_H
 #define NERVE_SYSTEM_H
 
-#define MUTATION_PROB 0.01f
+#define MUTATION_PROB 0.001f
 
 #include <random>
 #include <time.h>
