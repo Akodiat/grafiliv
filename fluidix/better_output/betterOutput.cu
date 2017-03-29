@@ -82,8 +82,6 @@ FUNC_EACH(handleEnergy,
         p.energy -= p.metabolism * g.dt;
         if (p.energy < g.minCellEnergy )
             turnIntoPellet(p)
-        else if (p.energy > p.maxEnergy)
-            p.energy -= (p.energy - p.maxEnergy) * 0.1f;
         break;
     case Pellet:
         p.energy -= g.cellDecayRate * g.dt;
@@ -161,11 +159,16 @@ FUNC_PAIR(particlePair,
                     //Spring force between neighbours
                     f = -u * ((dr - (p1.radius + p2.radius)/2) * g.springForce);
 
+                    float meanEnergy = (p1.energy + p2.energy) / 2;
+                    p1.energy = meanEnergy;
+                    p2.energy = meanEnergy;
+                    /*
                     //Energy transmission
                     float p1Surplus = maxf(p1.energy - g.minCellEnergy, 0);
                     float p2Surplus = maxf(p2.energy - g.minCellEnergy, 0);
                     transmitFloat(p1.energy, p2.energy, p1Surplus * p1.energyOut * p2.energyIn);
                     transmitFloat(p2.energy, p1.energy, p2Surplus * p2.energyOut * p2.energyIn);
+                    */
                 }
             }
             //Cells from different organisms
@@ -241,42 +244,34 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     case Photo:
         cell->energyIn = 0.01f;
         cell->energyOut = 0.6f;
-        cell->maxEnergy = 3.0f;
         break;
     case Digest:
         cell->energyIn = 0.01f;
         cell->energyOut = 0.6f;
-        cell->maxEnergy = 3.0f;
         break;
     case Fat:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.01f;
-        cell->maxEnergy = 10.0f;
         break;
     case Sense:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
         break;
     case Egg:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 1000.0f;
         break;
     case Vascular:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.2f;
-        cell->maxEnergy = 1.0f;
         break;
     case Sting:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
         break;
     default:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
-        cell->maxEnergy = 3.0f;
     }
 
     return true;
@@ -365,7 +360,7 @@ pair<int, vector<int>> createCellsFromGenotype(
                 nSensors++;
 
             float volume = cell->radius * cell->radius * cell->radius * PI * 4 / 3;
-            cell->metabolism += volume * 0.01;
+            cell->metabolism += volume * 0.05;
             addedCells.push_back(iFromCoord(x, y, z));
         }
         else
@@ -390,7 +385,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 5000 };
+    Organism organism = { genome, nerveSys, cells, -1, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -435,7 +430,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 5000 };
+    Organism organism = { genome, nerveSys, cells, parent, 1000 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -569,24 +564,28 @@ int main() {
         vector<int> organismsToRemove;
         for (auto& iOrg : organisms) {
             Organism *o = &iOrg.second;
+            int id = iOrg.first;
 
             o->health -= g.dt;
 
             vector<float> inputs;
-            vector<int> eggs;
             int nLiving = 0;
             int nDead = 0;
+            float totalEnergy = 0.0f;
+            xyz r = make_xyz(0, 0, 0);
             for (int i : o->cells){
                 if (p[i].particleType == Cell){
                     if (p[i].type == Sense)
                         inputs.push_back(p[i].signal);
-                    if (p[i].type == Egg)
-                        eggs.push_back(i);
                     nLiving++;
+                    totalEnergy += p[i].energy;
+                    r += p[i].r;
                 }
                 else
                 nDead++;
             }
+            r /= nLiving;
+
             if (o->health <= 0 || nDead > nLiving) {
                 for (int i : o->cells)
                 if (p[i].particleType == Cell)
@@ -594,11 +593,28 @@ int main() {
                 organismsToRemove.push_back(iOrg.first);
                 continue;
             }
-            vector<float> output = o->nerveSystem.getOutput(inputs);
 
+            int maxReqEnergy =
+                g.initialCellEnergy *
+                o->genome.getMaxCellsReq() +
+                o->genome.getSize() * g.genomeCost;
+            bool reproduced = false;
+            if (totalEnergy >= maxReqEnergy + g.initialCellEnergy * nLiving) {
+                reproduced = true;
+                spawnOrganism(
+                    r, &particleBuffer,
+                    p, id, &organisms
+                );
+                fx->applyParticleArray(pSet);
+            }
+
+            vector<float> output = o->nerveSystem.getOutput(inputs);
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 if (p[i].particleType == Cell){
+                    if (reproduced) {
+                        p[i].energy *= maxReqEnergy / totalEnergy;
+                    }
                     p[i].f += f * g.moveFactor;
                     //printf("Energy before: %.2f\t", p[i].energy);
                     p[i].energy -= xyz_len(f) * g.moveCost;
@@ -606,22 +622,8 @@ int main() {
                     p[i].signal *= 0.5f;
                 }
             }
-            // Hatch eggs if they have enought energy:
-            for (int i : eggs) {
-                int maxReqEnergy =
-                    g.initialCellEnergy *
-                    o->genome.getMaxCellsReq() +
-                    o->genome.getSize() * g.genomeCost;
-
-                if (p[i].energy >= maxReqEnergy + g.initialCellEnergy) {
-                    spawnOrganism(
-                        p[i].r, &particleBuffer,
-                        p, p[i].organism, &organisms
-                    );
-                    p[i].energy -= maxReqEnergy;
-                    fx->applyParticleArray(pSet);
-                }
-            }
+           
+            
         }
         for (int i : organismsToRemove)
             organisms.erase(i);

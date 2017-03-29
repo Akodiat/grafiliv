@@ -1,6 +1,6 @@
 ; This is a comment
 dt                          = 0.01			; Timestep size
-w                           = 200,100,200	; World size
+w                           = 500,100,500	; World size
 nParticles                  = 100000
 nInitialOrganisms           = 1000
 bufferSize                  = 1000

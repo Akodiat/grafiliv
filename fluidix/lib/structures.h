@@ -63,7 +63,6 @@ struct Particle {
     float energy;
     float energyIn;
     float energyOut;
-    float maxEnergy;
     float signal;
     float metabolism;
     int organism;
