@@ -146,21 +146,49 @@ public:
     }
 
     void updateInputs(int nIn) {
-        normal_distribution<float> rndNormal(0.0f, 1.0f);
-        while (nInputs < nIn) {
-            int in = nextNodeId;
-            nodes.emplace(nextNodeId++, Node(Input));
-            nInputs++;
-            for(int i=0; i<=nextNodeId; i++) {
+        if (nInputs == nIn) {
+            return;
+        }
+        else {
+            normal_distribution<float> rndNormal(0.0f, 1.0f);
+
+            //Determine sources and recievers
+            vector<int> sources, recievers;
+            for (int i = 0; i <= nextNodeId; i++) {
                 if (hasNode(i)) {
-                    if (nodes.at(i).type == Output) {
-                        float weight = rndNormal(rndGen);
-                        connections.push_back(Connection(in, i, weight, true));
+                    switch (nodes.at(i).type) {
+                        case Input: sources.push_back(i); break;
+                        case Bias: sources.push_back(i); break;
+                        case Output: recievers.push_back(i); break;
+                        case Hidden: sources.push_back(i); recievers.push_back(i); break;
                     }
                 }
             }
-        }
+            //If we need to add inputs
+            while (nInputs < nIn) {
+                uniform_int_distribution<int> rndReciever(0, recievers.size() - 1);
 
+                int in = nextNodeId;
+                int out = recievers[rndReciever(rndGen)];
+
+                nodes.emplace(nextNodeId++, Node(Input));
+                nInputs++;
+                float weight = rndNormal(rndGen);
+                connections.push_back(Connection(in, out, weight, true));
+                return;
+            }
+            //If we need to remove inputs
+            while (nInputs > nIn) {
+                for (int i = nextNodeId; i; i--) {
+                    if (hasNode(i) && nodes.at(i).type == Input) {
+                        nodes.erase(i);
+                        nInputs--;
+                        break;
+                    }
+                }
+                return;
+            }
+        }
     }
 
     //Get size of genome
