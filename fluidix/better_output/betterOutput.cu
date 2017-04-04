@@ -333,16 +333,25 @@ pair<int, vector<int>> createCellsFromGenotype(
     Particle *p, Genome *genome, NerveSystem *nerveSys, OrganismMap *organisms)
 {
     int nParticlesNeeded = genome->getMaxCellsReq();
-    if (nParticlesNeeded > particleBuffer->unsafe_size()) {
+    if (nParticlesNeeded > particleBuffer->size()) {
         cerr << "Not enought particles in buffer\n" << endl;
     }
     vector<int> cellBuff;
+/*  
     while (nParticlesNeeded) {
         int particle;
         if (particleBuffer->try_pop(particle)) {
             cellBuff.push_back(particle);
             nParticlesNeeded--;
         }
+        else
+            printf("Failed to retrive from buffer, trying again\n");
+    }
+*/
+    while (nParticlesNeeded--) {
+        int particle = particleBuffer->front();
+        particleBuffer->pop();
+        cellBuff.push_back(particle); 
     }
 
     int3 br = genome->getBoundingRadius();
@@ -674,11 +683,12 @@ int main() {
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
         fx->runEach(integrate(), pSet);
-        parallel_for (int(0), g.nParticles, [&](int i)
-        //for (int i = 0; i<g.nParticles; i++)
+        //parallel_for (int(0), g.nParticles, [&](int i)
+        ParticleBuffer empty; swap(particleBuffer, empty);
+        for (int i = 0; i<g.nParticles; i++)
         {
             if (p[i].toBuffer) {
-                if (particleBuffer.unsafe_size() > g.bufferSize) {
+                if (particleBuffer.size() > g.bufferSize) {
                     turnIntoEnergy(p[i]);
                 } else {
                     turnIntoBuffer(p[i]);
@@ -687,21 +697,27 @@ int main() {
                 p[i].toBuffer = false;
                 fx->applyParticleArray(pSet);
             }
-        });
+            else if (p[i].particleType == Buffer){
+                particleBuffer.push(i);
+                //fx->applyParticleArray(pSet);
+            }
+
+        }
+        //});
 
         //fx->applyParticleArray(pSet);
 
         g.nPellets = g.nBuffer = g.nEnergy = g.nCells = 0;
         fx->runEach(countParticles(), pSet);
-        fprintf(out, "%i,%i,%i,%i\n", g.nPellets, g.nBuffer, g.nEnergy, g.nCells);
 
         if (step % 10 == 0) {// && step > 1000000
 			//|| step % 10000 == 0) {
             printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
-            printf("buffer: %i (%i)\t", particleBuffer.unsafe_size(), g.nBuffer);
+            printf("buffer: %i (in queue), %i (actual)\t", particleBuffer.size(), g.nBuffer);
             printf("step %d\n", step);
             outputParticles(p, g.nParticles, step);
+            fprintf(out, "%i,%i,%i,%i\n", g.nPellets, g.nBuffer, g.nEnergy, g.nCells);
         }
 
         if (organisms.size() == 0) {
@@ -711,6 +727,5 @@ int main() {
     }
     fclose(out);
     delete fx;
-
     //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }

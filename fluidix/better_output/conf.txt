@@ -22,6 +22,6 @@ energyParticleEnergy        = 0.5
 energyParticleRadius        = 1.5
 cellExistenceThreshold      = 0.0
 cellMetabolism              = 0.2
-cellDecayRate               = 0.001
+cellDecayRate               = 0.01
 fluidDensity                = 1.0
 gravity                     = -9.81

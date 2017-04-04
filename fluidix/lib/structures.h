@@ -3,7 +3,8 @@
 
 #include "../lib/genome.h"
 #include "../lib/nerveSystem.h"
-#include <concurrent_queue.h>
+//#include <concurrent_queue.h>
+#include <queue>
 #include <unordered_map>
 
 struct Global {
@@ -78,6 +79,7 @@ struct Particle {
 };
 
 typedef std::unordered_map<int, Organism> OrganismMap;
-typedef Concurrency::concurrent_queue<int> ParticleBuffer;
+//typedef Concurrency::concurrent_queue<int> ParticleBuffer;
+typedef std::queue<int> ParticleBuffer;
 
 #endif
