@@ -33,6 +33,11 @@ struct Global {
     float cellDecayRate;
     float fluidDensity;
     float gravity;
+
+   int nPellets;
+   int nBuffer;
+   int nEnergy;
+   int nCells;
 } g;
 
 struct Organism {

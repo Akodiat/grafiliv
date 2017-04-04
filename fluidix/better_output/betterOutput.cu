@@ -12,6 +12,8 @@
 // Transfer amount f from a to b
 #define transmitFloat(a, b, f) {addFloat(a, -f); addFloat(b, f);}
 
+#define sphereVolume(r) (4.0f / 3.0f) * r * r * r * PI; 
+
 // Check if particle position is defined correctly
 #define isWeirdParticle(p) (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z)
 #define isWeirdParticlePointer(p) (p->r.x != p->r.x || p->r.y != p->r.y || p->r.z != p->r.z)
@@ -96,10 +98,23 @@ FUNC_EACH(handleEnergy,
 
 // Particles float depending on their density
 FUNC_EACH(buoyancy,
-    float volume = p.radius * p.radius * PI;
-    p.f.y += (p.density - g.fluidDensity) * g.gravity * volume;
+    float volume = sphereVolume(p.radius);
+    p.f.y += (g.fluidDensity - p.density) * volume; //buoyancy
+    p.f.y += g.gravity * volume * p.density;        //gravity
 )
 
+FUNC_EACH(countParticles,
+    switch (p.particleType) {
+    case Cell:
+        addInteger(g.nCells, 1); break;
+    case Pellet:
+        addInteger(g.nPellets, 1); break;
+    case Buffer:
+        addInteger(g.nBuffer, 1); break;
+    case Energy:
+        addInteger(g.nEnergy, 1); break;
+    }
+)
 
 // Periodic boundary conditions
 FUNC_EACH(boundary,
@@ -213,9 +228,9 @@ FUNC_SURFACE(collideGround,
 
 // Initialize particle as cell
 void setDefaultCellValues(Particle *cell) {
-    cell->radius = 1.0f;
+    //cell->radius = 1.0f;
     cell->energy = g.initialCellEnergy;
-    cell->density = g.fluidDensity * 1.10f;
+    //cell->density = g.fluidDensity * 1.10f;
     cell->particleType = Cell;
 }
 
@@ -226,6 +241,9 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         return false;
     float radius = output[N_CELL_TYPES + 1];
     cell->radius = clamp(radius, 0.5f, 2.0f);
+    float volume = sphereVolume(cell->radius);
+    float mass = 1.0f;
+    cell->density = mass/volume;
 
     float max = output[0]; cell->type = (CellType)0;
     for (int j = 1; j<N_CELL_TYPES; j++) {
@@ -567,8 +585,8 @@ int main() {
 
     fx->applyParticleArray(pSet);
 
-    int nReboots = 0;
-
+    FILE *out = fopen("countCells.csv", "w");
+    fprintf(out, "nPellets,nBuffer,nEnergy,nCells\n");
     for (int step = 0; step < g.nSteps; step++) {
         fx->runEach(boundary(), pSet);
         //fx->runSurface(collideGround(), terrain, pSet);
@@ -673,14 +691,17 @@ int main() {
 
         //fx->applyParticleArray(pSet);
 
+        g.nPellets = g.nBuffer = g.nEnergy = g.nCells = 0;
+        fx->runEach(countParticles(), pSet);
+        fprintf(out, "%i,%i,%i,%i\n", g.nPellets, g.nBuffer, g.nEnergy, g.nCells);
+
         if (step % 10 == 0) {// && step > 1000000
 			//|| step % 10000 == 0) {
             printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
-            printf("nReboots: %i\t", nReboots);
+            printf("buffer: %i (%i)\t", particleBuffer.unsafe_size(), g.nBuffer);
             printf("step %d\n", step);
-            //if (currGenomeIndex - g.nInitialOrganisms - nReboots > 0)
-                outputParticles(p, g.nParticles, step);
+            outputParticles(p, g.nParticles, step);
         }
 
         if (organisms.size() == 0) {
@@ -688,6 +709,7 @@ int main() {
             break;
         }
     }
+    fclose(out);
     delete fx;
 
     //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
