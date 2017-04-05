@@ -13,8 +13,8 @@ struct Global {
     int nParticles;
     int nInitialOrganisms;
     int bufferSize;
+    int energyParticleCount;
     int nSteps;
-    int3 initialOrganismDimensions;
     int nGenomeInputs; //Inputs x,y,z,d
     float interactionRange;
     int moveFactor;
@@ -26,7 +26,7 @@ struct Global {
     float groundRepulsiveForce; // repulsive wall force
     float initialCellEnergy;
     float minCellEnergy;
-    float minPelletEnergy;
+    float minDetritusEnergy;
     float energyParticleEnergy;
     float energyParticleRadius;
     float cellExistenceThreshold;
@@ -35,7 +35,7 @@ struct Global {
     float fluidDensity;
     float gravity;
 
-   int nPellets;
+   int nDetritus;
    int nBuffer;
    int nEnergy;
    int nCells;
@@ -54,7 +54,7 @@ enum CellType {
     N_CELL_TYPES
 };
 enum ParticleType {
-    Cell, Energy, Pellet, Buffer,
+    Cell, Energy, Detritus, Buffer,
     N_PARTICLE_TYPES
 };
 enum Neigbour { Front, Right, Up, Back, Left, Down };

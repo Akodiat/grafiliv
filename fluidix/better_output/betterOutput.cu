@@ -23,23 +23,20 @@ using namespace concurrency;
 
 int currGenomeIndex;
 
-// Turn a particle into pellet (dead cell) type
+// Turn a particle into Detritus (dead cell) type
 // Previous energy is preserved
-#define turnIntoPellet(p) {         \
-    p.particleType = Pellet;        \
+#define turnIntoDetritus(p) {         \
+    p.particleType = Detritus;        \
     p.density = g.fluidDensity * 2; \
     p.organism = -1;                \
 }                                   \
 
 // Turn a particle into energy type
-#define turnIntoEnergy(p) {            \
+#define resetEnergy(p) {               \
     p.particleType = Energy;           \
-    p.r = make_xyz(                    \
-        rnd_uniform() * g.w.x,         \
-        rnd_uniform() * g.w.y + g.w.y, \
-        rnd_uniform() * g.w.z          \
-    );                                 \
-    p.color = 0.7f;                    \
+    p.r.x = rnd_uniform() * g.w.x;     \
+    p.r.y += g.w.y;                    \
+    p.r.z = rnd_uniform() * g.w.z;     \
     p.energy = g.energyParticleEnergy; \
     p.signal = 0.0f;                   \
     p.radius = g.energyParticleRadius; \
@@ -55,17 +52,11 @@ int currGenomeIndex;
         rnd_uniform() * g.w.y - g.w.y, \
         rnd_uniform() * g.w.z          \
     );                                 \
-    p.density = g.fluidDensity * 2;    \
+    p.density = g.fluidDensity;        \
     p.color = 0.5f;                    \
     p.radius = 1.0f;                   \
     p.organism = -1;                   \
 }
-
-// Initialization function
-// Turn all particles into energy particles
-FUNC_EACH(init,
-    turnIntoEnergy(p);
-)
 
 // Update position r of particles given
 // velocity v and force f
@@ -77,20 +68,20 @@ FUNC_EACH(integrate,
 )
 
 // Decrease energy through metabolism in
-// cells and decay in pellets.
-// cell --> pellet --> buffer
+// cells and decay in detritus.
+// cell --> detritus --> buffer
 FUNC_EACH(handleEnergy,
     switch (p.particleType) {
     case Cell:
         p.energy -= p.metabolism * g.dt;
         if (p.energy < g.minCellEnergy )
-            turnIntoPellet(p)
+            turnIntoDetritus(p)
         else if (p.energy > p.maxEnergy)
             p.energy -= (p.energy - p.maxEnergy) * 0.1f;
         break;
-    case Pellet:
+    case Detritus:
         p.energy -= g.cellDecayRate * g.dt;
-        if (p.energy <= g.minPelletEnergy)
+        if (p.energy <= g.minDetritusEnergy)
             p.toBuffer = true;
         break;
     }
@@ -107,8 +98,8 @@ FUNC_EACH(countParticles,
     switch (p.particleType) {
     case Cell:
         addInteger(g.nCells, 1); break;
-    case Pellet:
-        addInteger(g.nPellets, 1); break;
+    case Detritus:
+        addInteger(g.nDetritus, 1); break;
     case Buffer:
         addInteger(g.nBuffer, 1); break;
     case Energy:
@@ -120,9 +111,16 @@ FUNC_EACH(countParticles,
 FUNC_EACH(boundary,
     // Check for wierd 1.#R values... NaN?
     if (isWeirdParticle(p)) {
-        turnIntoBuffer(p);
-        p.toBuffer = true;
-    } if (p.particleType != Buffer) {
+        if (p.particleType == Energy) {
+            p.r.y = rnd_uniform() * g.w.y;
+            resetEnergy(p);
+        }
+        else {
+            turnIntoBuffer(p);
+            p.toBuffer = true;
+        }
+    } 
+    if (p.particleType != Buffer) {
         if (p.r.x < 0)     p.r.x = g.w.x;
         if (p.r.x > g.w.x) p.r.x = 0;
         if (p.r.z < 0)     p.r.z = g.w.z;
@@ -130,7 +128,7 @@ FUNC_EACH(boundary,
 
         if (p.particleType == Energy) {
             if (p.r.y < 0) {
-                p.toBuffer = true;
+                resetEnergy(p);
             }
         }
         else {
@@ -188,11 +186,11 @@ FUNC_PAIR(particlePair,
             else {
                 //Kill the other cell if you are sting
                 if (p1.type == Sting && dr <= (p1.radius + p2.radius)) {
-                    //turnIntoPellet(p2);
+                    //turnIntoDetritus(p2);
                     transmitFloat(p2.energy, p1.energy, 0.05f);
                 }
                 if (p2.type == Sting && dr <= (p1.radius + p2.radius)) {
-                    //turnIntoPellet(p2);
+                    //turnIntoDetritus(p2);
                     transmitFloat(p1.energy, p2.energy, 0.05f);
                 }
             }
@@ -200,13 +198,13 @@ FUNC_PAIR(particlePair,
         //If p1 is a cell
         else if (p1.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p1.type == Photo && p2.particleType == Energy) ||
-                (p1.type == Digest  && p2.particleType == Pellet)
+                (p1.type == Digest  && p2.particleType == Detritus)
                 ) consumeParticle(p1, p2)
         }
         //If p2 is a cell
         else if (p2.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p2.type == Photo && p1.particleType == Energy) ||
-                (p2.type == Digest  && p1.particleType == Pellet)
+                (p2.type == Digest  && p1.particleType == Detritus)
                 ) consumeParticle(p2, p1)
         }
 
@@ -307,7 +305,7 @@ void disconnectCell(Particle *p, int cell, int code) {
         if (p[cell].links[i] >= 0)
             p[p[cell].links[i]].links[(i + 3) % 6] = code;
     }
-    turnIntoBuffer(p[cell]);
+    p[cell].toBuffer = true;
 }
 void emptyCellPos(Particle *p, int cell) {
     disconnectCell(p, cell, -1);
@@ -438,7 +436,7 @@ int spawnOrganism(
     NerveSystem nerveSys;
 
 	if(parent == -1) {
-		int3 gridDim = g.initialOrganismDimensions;
+		int3 gridDim = make_int3(1,1,1);
 
 		// Define number of in- and outputs
 		int inputs = g.nGenomeInputs;       // X, Y, Z, Dist
@@ -476,62 +474,6 @@ int spawnOrganism(
 
 #define printP(chr, p, i) printf("%c\tp[%i].r=(%.2f, %.2f, %.2f)\n", chr, i, p.r.x, p.r.y, p.r.z)
 
-int generateTerrain(Fluidix<> *fx){
-    exponential_distribution<float> rndUniform(1);
-
-    int terrDimX = 10;
-    int terrDimZ = 10;
-
-    int nParticles = (terrDimX*terrDimZ * 2);
-
-    int meshParticles = fx->createParticleSet(nParticles);
-    int meshLinks     = fx->createLinkSet();
-    Particle *mesh    = fx->getParticleArray(meshParticles);
-
-    float dx = g.w.x / (terrDimX-1);
-    float dz = g.w.z / (terrDimZ-1);
-
-    float margin = 1.2f;
-    float shiftX = ((margin - 1)*g.w.x) / 2;
-    float shiftZ = ((margin - 1)*g.w.z) / 2;
-
-    for (int x = 0; x < terrDimX; x++)
-    for (int z = 0; z < terrDimX; z++){
-        int i = x*terrDimZ + z;
-        mesh[i].r = make_xyz(
-            (x*dx)*margin - shiftX,
-            rndUniform(rndGen) * 10 + 10,
-            (z*dz)*margin - shiftZ
-        );
-        mesh[i + nParticles/2].r = make_xyz(
-            x*dx,
-            0,
-            z*dz
-        );
-
-        //Link terrain particles together:
-        int s = (x - 1)*terrDimZ + z;
-        int w = x*terrDimZ + (z - 1);
-        int sw = (x - 1)*terrDimZ + (z - 1);
-
-        if ((x - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, s);
-        if ((z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, w);
-        if ((x - 1) >= 0 && (z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, sw);
-
-        if ((x - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, s + (nParticles / 2));
-        if ((z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, w + (nParticles / 2));
-        if ((x - 1) >= 0 && (z - 1) >= 0) fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, sw + (nParticles / 2));
-
-        if (x % (terrDimX - 1) == 0 || z % (terrDimZ - 1) == 0){
-            fx->addLink(meshLinks, meshParticles, i, meshParticles, i + (nParticles / 2));
-            //if (x > 0 && z > 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, s + (nParticles / 2));
-        }
-        fx->applyParticleArray(meshParticles);
-        fx->outputFrame("output");
-    }
-    return meshLinks;
-}
-
 // Initialize a random organism
 int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap *organisms)
 {
@@ -561,44 +503,39 @@ int main() {
     // equal to g.nParticles
     int pSet = fx->createParticleSet(g.nParticles);
 
-    //int terrain = generateTerrain(fx);
-
     currGenomeIndex = 0;
     OrganismMap organisms;
 
-    // Initialize all particles
-    fx->runEach(init(), pSet);
-
+    // Initialize buffer
     ParticleBuffer particleBuffer;
+
     Particle *p = fx->getParticleArray(pSet);
 
-    int initialBufferSize =
-        (g.initialOrganismDimensions.x * 2 + 1) *
-        (g.initialOrganismDimensions.y * 2 + 1) *
-        (g.initialOrganismDimensions.z * 2 + 1) *
-        g.nInitialOrganisms +
-        g.bufferSize;
+    int i = 0;
+    int neededEnergy = g.energyParticleCount;
+      
+    // Initialize energy particles
+    while(neededEnergy--) {
+        p[i].r.y = rnd_uniform() * g.w.y;
+        resetEnergy(p[i]);
+        i++;
+    }
 
-    // Turn a large enought number of the particles into buffer
-    for (int i = 0; i < initialBufferSize; i++) {
+    // Turn the rest of the particles into buffer
+    while (i < g.nParticles) {
         turnIntoBuffer(p[i]);
-        p[i].r.y -= g.w.y;
         particleBuffer.push(i);
+        i++;
     }
 
     loadOrg("initOrg.json", &particleBuffer, p, &organisms);
-
-    //for (int i = 0; i < g.nInitialOrganisms; i++) {
-    //    initializeOrganism(&particleBuffer, p, &organisms);
-    //}
-
     fx->applyParticleArray(pSet);
 
     FILE *out = fopen("countCells.csv", "w");
-    fprintf(out, "nPellets,nBuffer,nEnergy,nCells\n");
+    fprintf(out, "nDetritus,nBuffer,nEnergy,nCells\n");
+
     for (int step = 0; step < g.nSteps; step++) {
         fx->runEach(boundary(), pSet);
-        //fx->runSurface(collideGround(), terrain, pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
 
         p = fx->getParticleArray(pSet);
@@ -626,7 +563,7 @@ int main() {
             if (o->health <= 0 || nDead > nLiving) {
                 for (int i : o->cells)
                 if (p[i].particleType == Cell)
-                    turnIntoPellet(p[i]);
+                    turnIntoDetritus(p[i]);
                 organismsToRemove.push_back(iOrg.first);
                 continue;
             }
@@ -642,7 +579,6 @@ int main() {
                     xyz left = p[i].links[Left] >= 0 ? p[p[i].links[Left]].r : make_xyz(-1, 0, 0);
                     xyz down = p[i].links[Down] >= 0 ? p[p[i].links[Down]].r : make_xyz(0, -1, 0);
 
-
                     Matrix3 m = getTransform(
                         front - p[i].r,
                         right - p[i].r,
@@ -652,9 +588,7 @@ int main() {
                         down - p[i].r
                     );
                     p[i].f += m.dot(f) * g.moveFactor;
-                    //printf("Energy before: %.2f\t", p[i].energy);
                     p[i].energy -= xyz_len(f) * g.moveCost;
-                    //printf("Energy after: %.2f\n", p[i].energy);
                     p[i].signal *= 0.5f;
                 }
             }
@@ -679,36 +613,44 @@ int main() {
             organisms.erase(i);
         fx->applyParticleArray(pSet);
 
-        //fx->runEach(moveParticle(), pSet);
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
         fx->runEach(integrate(), pSet);
-        //parallel_for (int(0), g.nParticles, [&](int i)
-        ParticleBuffer empty; swap(particleBuffer, empty);
+        
+        //if (step % 100 == 0) { ParticleBuffer empty; swap(particleBuffer, empty); }
         for (int i = 0; i<g.nParticles; i++)
         {
-            if (p[i].toBuffer) {
-                if (particleBuffer.size() > g.bufferSize) {
-                    turnIntoEnergy(p[i]);
-                } else {
-                    turnIntoBuffer(p[i]);
-                    particleBuffer.push(i);
-                }
+            if (p[i].toBuffer && p[i].particleType != Energy) {
+                turnIntoBuffer(p[i]);
+                particleBuffer.push(i);
                 p[i].toBuffer = false;
                 fx->applyParticleArray(pSet);
             }
-            else if (p[i].particleType == Buffer){
-                particleBuffer.push(i);
-                //fx->applyParticleArray(pSet);
-            }
+            //else if (step % 100 == 0 && p[i].particleType == Buffer){
+            //    particleBuffer.push(i);
+            //}
 
         }
-        //});
 
-        //fx->applyParticleArray(pSet);
-
-        g.nPellets = g.nBuffer = g.nEnergy = g.nCells = 0;
+        g.nDetritus = g.nBuffer = g.nEnergy = g.nCells = 0;
         fx->runEach(countParticles(), pSet);
+
+		//fx->outputFrame("temp");
+
+        //If buffer is getting to small, increase it
+        //by adding more particles to the simulation
+        if (particleBuffer.size() < g.bufferSize) {
+            int currentParticleCount = g.nParticles;
+            g.nParticles += g.bufferSize;
+            printf("Increasing buffer size from %i to %i\n", currentParticleCount, g.nParticles);
+            fx->resizeParticleSet(pSet, g.nParticles);
+            p = fx->getParticleArray(pSet);
+            for (int i = currentParticleCount; i < g.nParticles; i++) {
+                turnIntoBuffer(p[i]);
+                particleBuffer.push(i);
+            }
+            fx->applyParticleArray(pSet);
+        }
 
         if (step % 10 == 0) {// && step > 1000000
 			//|| step % 10000 == 0) {
@@ -717,7 +659,8 @@ int main() {
             printf("buffer: %i (in queue), %i (actual)\t", particleBuffer.size(), g.nBuffer);
             printf("step %d\n", step);
             outputParticles(p, g.nParticles, step);
-            fprintf(out, "%i,%i,%i,%i\n", g.nPellets, g.nBuffer, g.nEnergy, g.nCells);
+            fprintf(out, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
+
         }
 
         if (organisms.size() == 0) {

@@ -68,9 +68,9 @@ Global loadConfig(string path) {
         else if (str_eq(key,"w"))                           g.w = stoi3(val);
         else if (str_eq(key,"nParticles"))                  g.nParticles = stoi(val);
         else if (str_eq(key,"nInitialOrganisms"))           g.nInitialOrganisms = stoi(val);
-        else if (str_eq(key,"bufferSize"))                  g.bufferSize = stoi(val);
+        else if (str_eq(key, "bufferSize"))                 g.bufferSize = stoi(val);
+        else if (str_eq(key, "energyParticleCount"))        g.energyParticleCount = stoi(val);
         else if (str_eq(key,"nSteps"))                      g.nSteps = stoi(val);
-        else if (str_eq(key,"initialOrganismDimensions"))   g.initialOrganismDimensions = stoi3(val);
         else if (str_eq(key,"nGenomeInputs"))               g.nGenomeInputs = stoi(val);
         else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);
         else if (str_eq(key, "moveFactor"))                 g.moveFactor = stoi(val);
@@ -82,7 +82,7 @@ Global loadConfig(string path) {
         else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);
         else if (str_eq(key,"initialCellEnergy"))           g.initialCellEnergy = stof(val);
         else if (str_eq(key,"minCellEnergy"))               g.minCellEnergy = stof(val);
-        else if (str_eq(key,"minPelletEnergy"))             g.minPelletEnergy = stof(val);
+        else if (str_eq(key, "minDetritusEnergy"))          g.minDetritusEnergy = stof(val);
         else if (str_eq(key,"energyParticleEnergy"))        g.energyParticleEnergy = stof(val);
         else if (str_eq(key,"energyParticleRadius"))        g.energyParticleRadius = stof(val);
         else if (str_eq(key,"cellExistenceThreshold"))      g.cellExistenceThreshold = stof(val);
@@ -178,7 +178,7 @@ void outputParticles(Particle *p, int nParticles, int step) {
     fprintf(out, "{\"Items\":[\n");
     bool first = true;
     for (int i = 0; i < nParticles; i++) {
-        if (p[i].particleType == Cell || p[i].particleType == Pellet) {
+        if (p[i].particleType == Cell || p[i].particleType == Detritus) {
             if (first){
                 first = false;
             }
