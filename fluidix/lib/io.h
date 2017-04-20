@@ -129,9 +129,14 @@ void loadOrg(
         //int parent = stoi(match[1]);
 
         //Set random position:
+        /*
         xyz origin = make_xyz_uniform() * int3_to_xyz(g.w);
         origin.y /= 2;
         origin.y += g.w.y / 2;
+        */
+
+        //Position in center:
+        xyz origin = make_xyz(g.w.x / 2, g.w.y / 2, g.w.z / 2);
 
         spawnOrganism(
             origin, particleBuffer, p, genome, nerveSys, organisms
@@ -142,7 +147,7 @@ void loadOrg(
     }
 }
 
-void outputOrganism(Organism *o, int organismID){
+void outputOrganism(Organism *o, int organismID, int creationStep){
     mkdir("organisms");
     char out_name[256];
     sprintf(out_name, "organisms/org%d.json", organismID);
@@ -158,12 +163,14 @@ void outputOrganism(Organism *o, int organismID){
     fprintf(out, o->nerveSystem.toJSON().c_str());
     fprintf(out, ",\n\"parent\": ");
     fprintf(out, to_string(o->parent).c_str());
+    fprintf(out, ",\n\"step\": ");
+    fprintf(out, to_string(creationStep).c_str());
     fprintf(out, "\n}");
 
     fclose(out);
 }
 
-
+/*
 void outputParticles(Particle *p, int nParticles, int step) {
     char out_name[256];
     sprintf(out_name, "output/frame%d.json", step);
@@ -198,6 +205,34 @@ void outputParticles(Particle *p, int nParticles, int step) {
         }
     }
     fprintf(out, "]}");
+    fclose(out);
+}
+*/
+
+void outputParticles(Particle *p, int nParticles, int step) {
+    char out_name[256];
+    sprintf(out_name, "output/frame%d.csv", step);
+
+    mkdir("output");
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file %s\n", out_name);
+    }
+
+    fprintf(out, "pt,ct,o,e,r,x,y,z\n");
+    for (int i = 0; i < nParticles; i++) {
+        if (p[i].particleType == Cell || p[i].particleType == Detritus) {
+            fprintf(out,"%i,%i,%i,%f,%f,%f,%f,%f\n",
+                (int)p[i].particleType,
+                (int)p[i].type,
+                p[i].organism,
+                p[i].energy,
+                p[i].radius,
+                p[i].r.x, p[i].r.y, p[i].r.z
+            );
+        }
+    }
     fclose(out);
 }
 

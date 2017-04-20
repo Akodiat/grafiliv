@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.IO;
 
-public enum NodeType {Input, Hidden, Output};
+public enum NodeType {Input, Hidden, Output, Bias};
 public enum ActivationFunction {
 	Sine, Abs, Id, Mod, Gaus
 };
@@ -76,6 +76,9 @@ public class OrgInspector : MonoBehaviour {
         {
             var c = org.genome.links[i];
             if (c.i == c.o) continue; //Ignore self connections at the moment
+            print(nodes.Count);
+            print(c.i);
+            print(c.o);
             connections.Add(new Connection(nodes[c.i], nodes[c.o], c.w));
         }
     }
@@ -146,7 +149,8 @@ public class OrgInspector : MonoBehaviour {
                     color = Color.green;
                     y = 200;
                     break;
-                default: color = Color.black;
+                default:
+                    color = Color.black;
                     y = 500;
                     break;
             }

@@ -12,7 +12,7 @@
 // Transfer amount f from a to b
 #define transmitFloat(a, b, f) {addFloat(a, -f); addFloat(b, f);}
 
-#define sphereVolume(r) (4.0f / 3.0f) * r * r * r * PI; 
+#define sphereVolume(r) (4.0f / 3.0f) * r * r * r * PI;
 
 // Check if particle position is defined correctly
 #define isWeirdParticle(p) (p.r.x != p.r.x || p.r.y != p.r.y || p.r.z != p.r.z)
@@ -22,6 +22,7 @@ using namespace std;
 using namespace concurrency;
 
 int currGenomeIndex;
+int step;
 
 // Turn a particle into Detritus (dead cell) type
 // Previous energy is preserved
@@ -65,16 +66,18 @@ FUNC_EACH(integrate,
     p.r += p.v * g.dt;
     p.f = make_xyz(0, 0, 0);
     p.v *= 0.97f;
-)
+    )
 
 // Decrease energy through metabolism in
 // cells and decay in detritus.
 // cell --> detritus --> buffer
 FUNC_EACH(handleEnergy,
+    p.color = p.energy * 0.2f;
     switch (p.particleType) {
     case Cell:
+        //printf("Cell energy: %.2f\n", p.energy);
         p.energy -= p.metabolism * g.dt;
-        if (p.energy < g.minCellEnergy )
+        if (p.energy < g.minCellEnergy)
             turnIntoDetritus(p)
         else if (p.energy > p.maxEnergy)
             p.energy -= (p.energy - p.maxEnergy) * 0.1f;
@@ -84,14 +87,19 @@ FUNC_EACH(handleEnergy,
         if (p.energy <= g.minDetritusEnergy)
             p.toBuffer = true;
         break;
+    case Energy:
+        if (p.energy <= 0)
+            p.toBuffer = true;
     }
 )
 
 // Particles float depending on their density
 FUNC_EACH(buoyancy,
     float volume = sphereVolume(p.radius);
-    p.f.y += (g.fluidDensity - p.density) * volume; //buoyancy
-    p.f.y += g.gravity * volume * p.density;        //gravity
+    float weight = p.density * volume;
+    float displacedFluidWeight = g.fluidDensity * volume;
+    float apparentWeight = weight - displacedFluidWeight;
+    p.f.y += apparentWeight * g.gravity;
 )
 
 FUNC_EACH(countParticles,
@@ -111,6 +119,7 @@ FUNC_EACH(countParticles,
 FUNC_EACH(boundary,
     // Check for wierd 1.#R values... NaN?
     if (isWeirdParticle(p)) {
+        printf("Wierd particle at (%.2f, %.2f, %.2f) type=%i\n", p.r.x, p.r.y, p.r.z, p.particleType);
         if (p.particleType == Energy) {
             p.r.y = rnd_uniform() * g.w.y;
             resetEnergy(p);
@@ -145,12 +154,8 @@ FUNC_EACH(boundary,
     else if (p.r.y < -2 * g.w.y) p.r.y += g.w.y;
 )
 
-// Let particle a eat particle b
-#define consumeParticle(a, b) {      \
-    addFloat(a.energy, b.energy);    \
-    b.energy = 0;                    \
-    b.toBuffer = true;               \
-}
+// Let particle a eat of particle b until full
+#define getEnergyNeed(a,b) maxf(minf((a.maxEnergy - a.energy), b.energy),0)
 
 // For each particle within a predifined distance
 FUNC_PAIR(particlePair,
@@ -159,8 +164,7 @@ FUNC_PAIR(particlePair,
             (g.repulsiveForce * (1 - dr / (p1.radius + p2.radius))),
             0
         );
-        if (p1.particleType == Cell &&
-            p2.particleType == Cell)
+        if (p1.particleType == Cell && p2.particleType == Cell)
         {
             //Cells from the same organism
             if (p1.organism == p2.organism) {
@@ -175,7 +179,6 @@ FUNC_PAIR(particlePair,
                     //Spring force between neighbours
                     f = -u * ((dr - (p1.radius + p2.radius)/2) * g.springForce);
 
-                    //Energy transmission
                     float p1Surplus = maxf(p1.energy - g.minCellEnergy, 0);
                     float p2Surplus = maxf(p2.energy - g.minCellEnergy, 0);
                     transmitFloat(p1.energy, p2.energy, p1Surplus * p1.energyOut * p2.energyIn);
@@ -187,11 +190,15 @@ FUNC_PAIR(particlePair,
                 //Kill the other cell if you are sting
                 if (p1.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoDetritus(p2);
-                    transmitFloat(p2.energy, p1.energy, 0.5f);
+                    //transmitFloat(p2.energy, p1.energy, 0.5f);
+                    float need = getEnergyNeed(p1, p2);
+                    transmitFloat(p2.energy, p1.energy, need);
                 }
                 if (p2.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoDetritus(p2);
-                    transmitFloat(p1.energy, p2.energy, 0.5f);
+                    //transmitFloat(p1.energy, p2.energy, 0.5f);
+                    float need = getEnergyNeed(p2, p1);
+                    transmitFloat(p1.energy, p2.energy, need);
                 }
             }
         }
@@ -199,13 +206,21 @@ FUNC_PAIR(particlePair,
         else if (p1.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p1.type == Photo && p2.particleType == Energy) ||
                 (p1.type == Digest  && p2.particleType == Detritus)
-                ) consumeParticle(p1, p2)
+                )
+            {
+                float need = getEnergyNeed(p1, p2);
+                transmitFloat(p2.energy, p1.energy, need);
+            }
         }
         //If p2 is a cell
         else if (p2.particleType == Cell && dr <= (p1.radius + p2.radius)) {
             if ((p2.type == Photo && p1.particleType == Energy) ||
                 (p2.type == Digest  && p1.particleType == Detritus)
-                ) consumeParticle(p2, p1)
+                )
+            {
+                float need = getEnergyNeed(p2, p1);
+                transmitFloat(p1.energy, p2.energy, need);
+            }
         }
 
         if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, 1.0f/dr);
@@ -238,12 +253,13 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     if (output[N_CELL_TYPES] < g.cellExistenceThreshold)
         return false;
     float radius = output[N_CELL_TYPES + 1];
-    cell->radius = mapf(radius, 0.0f, 1.0f, 0.5f, 2.0f);
-    if (cell->radius < 0) cell->radius = 0.5f;
+    cell->radius = clamp((radius/2) + 0.5f, 0.5f, 1.0f);
+    //if (cell->radius < 0) cell->radius = 0.5f;
     //printf("Radius mapped from %.2f to %.2f\n", radius, cell->radius);
-    float volume = sphereVolume(cell->radius);
-    float mass = 1.0f;
-    cell->density = mass/volume;
+    //float volume = sphereVolume(cell->radius);
+    //float mass = 1.0f;
+
+    cell->density = g.fluidDensity * 1.1f; //mass/volume;
 
     float max = output[0]; cell->type = (CellType)0;
     for (int j = 1; j<N_CELL_TYPES; j++) {
@@ -259,18 +275,18 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     switch (cell->type) {
     case Photo:
         cell->energyIn = 0.01f;
-        cell->energyOut = 0.6f;
-        cell->maxEnergy = 5.0f;
+        cell->energyOut = 0.5f;
+        cell->maxEnergy = 10.0f;
         break;
     case Digest:
         cell->energyIn = 0.01f;
-        cell->energyOut = 0.6f;
-        cell->maxEnergy = 5.0f;
+        cell->energyOut = 0.5f;
+        cell->maxEnergy = 10.0f;
         break;
     case Fat:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.01f;
-        cell->maxEnergy = 10.0f;
+        cell->maxEnergy = 50.0f;
         break;
     case Sense:
         cell->energyIn = 1.0f;
@@ -288,9 +304,15 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
         cell->maxEnergy = 3.0f;
         break;
     case Sting:
+        cell->energyIn = 0.01f;
+        cell->energyOut = 0.5f;
+        cell->maxEnergy = 10.0f;
+        break;
+    case Buoyancy:
         cell->energyIn = 1.0f;
         cell->energyOut = 0.0f;
         cell->maxEnergy = 5.0f;
+        cell->density = g.fluidDensity * 0.01f;
         break;
     default:
         cell->energyIn = 1.0f;
@@ -393,7 +415,7 @@ pair<int, vector<int>> createCellsFromGenotype(
                 nSensors++;
 
             float volume = cell->radius * cell->radius * cell->radius * PI * 4 / 3;
-            cell->metabolism += volume * 0.05;
+            cell->metabolism += volume * 0.05f;
             addedCells.push_back(iFromCoord(x, y, z));
         }
         else
@@ -424,7 +446,7 @@ int spawnOrganism(
     organisms->emplace(organismID, organism);
 
     //Output organism to disk
-    outputOrganism(&organism, organismID);
+    outputOrganism(&organism, organismID, step);
 
     return organismID;
 }
@@ -469,7 +491,7 @@ int spawnOrganism(
     organisms->emplace(organismID, organism);
 
     //Output organism to disk
-    outputOrganism(&organism, organismID);
+    outputOrganism(&organism, organismID, step);
 
     return organismID;
 }
@@ -530,13 +552,16 @@ int main() {
         i++;
     }
 
+    //for (int i = 0; i < 1000; i++)
     loadOrg("initOrg.json", &particleBuffer, p, &organisms);
+
     fx->applyParticleArray(pSet);
 
     FILE *out = fopen("countCells.csv", "w");
     fprintf(out, "nDetritus,nBuffer,nEnergy,nCells\n");
 
-    for (int step = 0; step < g.nSteps; step++) {
+    step = 0;
+    while(step++ < g.nSteps) {
         fx->runEach(boundary(), pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
 
@@ -544,7 +569,6 @@ int main() {
         vector<int> organismsToRemove;
         for (auto& iOrg : organisms) {
             Organism *o = &iOrg.second;
-
             o->health -= g.dt;
 
             vector<float> inputs;
@@ -574,6 +598,7 @@ int main() {
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 if (p[i].particleType == Cell){
+                    
                     xyz front = p[i].links[Front] >= 0 ? p[p[i].links[Front]].r : make_xyz(0, 0, 1);
                     xyz right = p[i].links[Right] >= 0 ? p[p[i].links[Right]].r : make_xyz(1, 0, 0);
                     xyz up = p[i].links[Up] >= 0 ? p[p[i].links[Up]].r : make_xyz(0, 1, 0);
@@ -590,6 +615,8 @@ int main() {
                         down - p[i].r
                     );
                     p[i].f += m.dot(f) * g.moveFactor;
+                    
+                    //p[i].f += f;
                     p[i].energy -= xyz_len(f) * g.moveCost;
                     p[i].signal *= 0.5f;
                 }
@@ -637,14 +664,12 @@ int main() {
         g.nDetritus = g.nBuffer = g.nEnergy = g.nCells = 0;
         fx->runEach(countParticles(), pSet);
 
-		//fx->outputFrame("temp");
-
         //If buffer is getting to small, increase it
         //by adding more particles to the simulation
         if (particleBuffer.size() < g.bufferSize) {
             int currentParticleCount = g.nParticles;
             g.nParticles += g.bufferSize;
-            printf("Increasing buffer size from %i to %i\n", currentParticleCount, g.nParticles);
+            printf("Increasing particle array size from %i to %i\n", currentParticleCount, g.nParticles);
             fx->resizeParticleSet(pSet, g.nParticles);
             p = fx->getParticleArray(pSet);
             for (int i = currentParticleCount; i < g.nParticles; i++) {
@@ -654,17 +679,31 @@ int main() {
             fx->applyParticleArray(pSet);
         }
         else if (particleBuffer.size() > g.nParticles / 2) {
-            printf("Increasing buffer size from %i", g.nParticles);
-            while (p[g.nParticles].particleType == Buffer){
-                g.nParticles--;
+            //printf("Decreasing buffer size from %i", g.nParticles);
+            int nBuffersAtEnd = 0;
+            //printf("End particle type: %i (buffer is %i)\n", p[g.nParticles - nBuffersAtEnd - 1].particleType, Buffer);
+            while (p[g.nParticles - nBuffersAtEnd - 1].particleType == Buffer &&
+                particleBuffer.size() - nBuffersAtEnd > g.nParticles / 2
+            ){
+                nBuffersAtEnd++;
             }
-            fx->resizeParticleSet(pSet, g.nParticles);
-            printf(" to %i\n", g.nParticles);
-            p = fx->getParticleArray(pSet);
+            if (nBuffersAtEnd > 0){
+                printf("Decreasing particle array size from %i to %i\n", g.nParticles, g.nParticles - nBuffersAtEnd);
+                g.nParticles -= nBuffersAtEnd;
+                fx->resizeParticleSet(pSet, g.nParticles);
+                p = fx->getParticleArray(pSet);
+                fx->applyParticleArray(pSet);
+
+                ParticleBuffer empty;
+                swap(particleBuffer, empty);
+
+                for (int i = 0; i<g.nParticles; i++)
+                    if (p[i].particleType == Buffer)
+                        particleBuffer.push(i);
+            }
         }
 
-        if (step % 10 == 0) {// && step > 1000000
-			//|| step % 10000 == 0) {
+        if (step % 100 == 0) {
             printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("buffer: %i (in queue), %i (actual)\t", particleBuffer.size(), g.nBuffer);
@@ -673,6 +712,8 @@ int main() {
             fprintf(out, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
 
         }
+
+        if (step % 10000 == 0) fx->outputFrame("temp");
 
         if (organisms.size() == 0) {
             printf("All organisms died. End of simulation\n");

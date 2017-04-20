@@ -43,16 +43,19 @@ public class Load : MonoBehaviour {
 
     private FileInfo[] files;
     private DirectoryInfo recordDir;
-
-    private List<Vector3> GetOrgPositions(Particle[] ps, int orgID)
+    
+    private List<Vector3> GetOrgPositions(int orgID)
     {
+        /*
         List<Vector3> positions = new List<Vector3>();
-        foreach (Particle p in ps)
+        foreach (GameObject p in particles)
             if (p.o == orgID)
                 positions.Add(new Vector3(p.x, p.y, p.z));
         return positions;
+        */
+        return new List<Vector3>();
     }
-
+    
     
     private Material getMaterial(CellType ct){
         switch (ct)
@@ -84,39 +87,6 @@ public class Load : MonoBehaviour {
 
         frame = 0;
 
-        string line;   
-        try {
-            StreamReader sr = new StreamReader("output/frame" + frame + ".json");
-            line = sr.ReadToEnd();
-        }
-        catch (FileNotFoundException) {
-            return;
-        }
-        Particle[] p = JsonHelper.FromJson<Particle>(line);
-
-        for (int i = 0; i < p.Length; i++)
-        {
-
-            Vector3 position = new Vector3(
-                p[i].x, p[i].y, p[i].z
-            );
-
-            GameObject particle = Instantiate(particlePrefab, position, Quaternion.identity);
-            MeshRenderer renderer = particle.GetComponent(typeof(MeshRenderer)) as MeshRenderer;
-            Transform transform = particle.GetComponent(typeof(Transform)) as Transform;
-
-            transform.localScale = 2 * new Vector3(p[i].r, p[i].r, p[i].r);
-                
-            if (p[i].pt == ParticleType.Cell)
-            {
-                renderer.material = getMaterial(p[i].ct);
-            }
-            else if (p[i].pt == ParticleType.Pellet)
-            {
-                renderer.material = mPellet;
-            }
-            particles.Add(particle);
-        }
     }
     // Update is called once per frame
     void Update () {
@@ -136,27 +106,26 @@ public class Load : MonoBehaviour {
         string line;
 
         int nEggs = 0;
-
-        try
-        {
-            StreamReader sr = new StreamReader("output/frame" + frame + ".json");
-            line = sr.ReadToEnd();
-        }
-        catch (FileNotFoundException)
-        {
-            return;
-        }
-
-        Particle[] p = JsonHelper.FromJson<Particle>(line);
-
+        StreamReader sr = new StreamReader("output/frame" + frame + ".csv");
+        
+        line = sr.ReadLine(); //Read heading line so that we don't try to parse it
+        
         int i = 0;
-        while (i < p.Length)
-        {
-            Vector3 position = new Vector3(
-                    p[i].x, p[i].y, p[i].z
-            );
+        while (sr.Peek() >= 0) 
+        { 
+            try
+            {
+                line = sr.ReadLine();
+            }
+            catch (FileNotFoundException)
+            {
+                return;
+            }
+            Particle p = new Particle(line);
 
-            //print(i);
+            Vector3 position = new Vector3(
+                    p.x, p.y, p.z
+            );
 
             if (i >= particles.Count)
             {
@@ -172,21 +141,21 @@ public class Load : MonoBehaviour {
             particles[i].GetComponent<SphereCollider>().enabled = inspectToggle.isOn;
             if (inspectToggle.isOn)
             {
-                particles[i].SendMessage("setParticle", p[i]);
-                particles[i].SendMessage("setOrganism", GetOrgPositions(p, p[i].o));
+                particles[i].SendMessage("setParticle", p);
+                particles[i].SendMessage("setOrganism", GetOrgPositions(p.o));
             }
 
             MeshRenderer renderer = particles[i].GetComponent(typeof(MeshRenderer)) as MeshRenderer;
             Transform transform = particles[i].GetComponent(typeof(Transform)) as Transform;
-            transform.localScale = 2 * new Vector3(p[i].r, p[i].r, p[i].r);
+            transform.localScale = 2 * new Vector3(p.r, p.r, p.r);
 
-            if (p[i].pt == ParticleType.Cell)
+            if (p.pt == ParticleType.Cell)
             {
-                renderer.material = getMaterial(p[i].ct);
-                if (p[i].ct == CellType.Egg)
+                renderer.material = getMaterial(p.ct);
+                if (p.ct == CellType.Egg)
                     nEggs++;
             }
-            else if (p[i].pt == ParticleType.Pellet)
+            else if (p.pt == ParticleType.Pellet)
             {
                 renderer.material = mPellet;
             }
@@ -201,6 +170,7 @@ public class Load : MonoBehaviour {
         eggCounter.text = "# of egg cells: " + nEggs;
     }
 }
+
 
 public static class JsonHelper
 {
@@ -227,11 +197,18 @@ public static class JsonHelper
 [System.Serializable]
 public class Particle
 {
-    /*
-    public string playerId;
-    public string playerLoc;
-    public string playerNick;
-    */
+    public Particle(string s)
+    {
+        string[] fields = s.Split(',');
+        pt = (ParticleType) int.Parse(fields[0]);
+        ct = (CellType)     int.Parse(fields[1]);
+        o =                 int.Parse(fields[2]);
+        e =               float.Parse(fields[3]);
+        r =               float.Parse(fields[4]);
+        x =               float.Parse(fields[5]);
+        y =               float.Parse(fields[6]);
+        z =               float.Parse(fields[7]);
+    }
     public ParticleType pt;
     public CellType ct;
     public int o;

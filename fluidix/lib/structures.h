@@ -50,7 +50,7 @@ struct Organism {
 };
 
 enum CellType {
-    Photo, Digest, Sting, Vascular, Fat, Sense, Egg,
+    Photo, Digest, Sting, Vascular, Fat, Sense, Egg, Buoyancy,
     N_CELL_TYPES
 };
 enum ParticleType {
