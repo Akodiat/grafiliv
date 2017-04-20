@@ -187,11 +187,11 @@ FUNC_PAIR(particlePair,
                 //Kill the other cell if you are sting
                 if (p1.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoDetritus(p2);
-                    transmitFloat(p2.energy, p1.energy, 0.05f);
+                    transmitFloat(p2.energy, p1.energy, 0.5f);
                 }
                 if (p2.type == Sting && dr <= (p1.radius + p2.radius)) {
                     //turnIntoDetritus(p2);
-                    transmitFloat(p1.energy, p2.energy, 0.05f);
+                    transmitFloat(p1.energy, p2.energy, 0.5f);
                 }
             }
         }
@@ -238,7 +238,9 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     if (output[N_CELL_TYPES] < g.cellExistenceThreshold)
         return false;
     float radius = output[N_CELL_TYPES + 1];
-    cell->radius = clamp(radius, 0.5f, 2.0f);
+    cell->radius = mapf(radius, 0.0f, 1.0f, 0.5f, 2.0f);
+    if (cell->radius < 0) cell->radius = 0.5f;
+    //printf("Radius mapped from %.2f to %.2f\n", radius, cell->radius);
     float volume = sphereVolume(cell->radius);
     float mass = 1.0f;
     cell->density = mass/volume;
@@ -416,7 +418,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 1000 };
+    Organism organism = { genome, nerveSys, cells, -1, 100 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -461,7 +463,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 1000 };
+    Organism organism = { genome, nerveSys, cells, parent, 100 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -650,6 +652,15 @@ int main() {
                 particleBuffer.push(i);
             }
             fx->applyParticleArray(pSet);
+        }
+        else if (particleBuffer.size() > g.nParticles / 2) {
+            printf("Increasing buffer size from %i", g.nParticles);
+            while (p[g.nParticles].particleType == Buffer){
+                g.nParticles--;
+            }
+            fx->resizeParticleSet(pSet, g.nParticles);
+            printf(" to %i\n", g.nParticles);
+            p = fx->getParticleArray(pSet);
         }
 
         if (step % 10 == 0) {// && step > 1000000
