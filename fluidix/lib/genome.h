@@ -123,7 +123,7 @@ public:
             int id = stoi(idMatch.str());
             ActivationFunction f = (ActivationFunction)stoi(fMatch.str());
 
-            if (id > nextNodeId) nextNodeId = id;
+            if (id > nextNodeId) nextNodeId = id + 1;
 
             Node node(type, f);
             nodes.emplace(id, node);

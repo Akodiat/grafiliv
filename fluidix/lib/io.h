@@ -147,6 +147,26 @@ void loadOrg(
     }
 }
 
+void logOrgDeath(int organismID, int deathStep, string cause) {
+    mkdir("orgDeaths");
+    char out_name[256];
+    sprintf(out_name, "orgDeaths/org%d.json", organismID);
+
+    FILE *out = fopen(out_name, "wb");
+    if (!out) {
+        cerr << "Error writing to organism output file " << out_name << endl;
+    }
+
+    fprintf(out, "{\n");
+    fprintf(out, "\"step\": ");
+    fprintf(out, to_string(deathStep).c_str());
+    fprintf(out, ",\n\"cause\": \"");
+    fprintf(out, cause.c_str());
+    fprintf(out, "\"\n}");
+
+    fclose(out);
+}
+
 void outputOrganism(Organism *o, int organismID, int creationStep){
     mkdir("organisms");
     char out_name[256];

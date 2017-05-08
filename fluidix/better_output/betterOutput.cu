@@ -26,8 +26,8 @@ int step;
 
 // Turn a particle into Detritus (dead cell) type
 // Previous energy is preserved
-#define turnIntoDetritus(p) {         \
-    p.particleType = Detritus;        \
+#define turnIntoDetritus(p) {       \
+    p.particleType = Detritus;      \
     p.density = g.fluidDensity * 2; \
     p.organism = -1;                \
 }                                   \
@@ -39,21 +39,24 @@ int step;
     p.r.y += g.w.y;                    \
     p.r.z = rnd_uniform() * g.w.z;     \
     p.energy = g.energyParticleEnergy; \
-    p.signal = 0.0f;                   \
     p.radius = g.energyParticleRadius; \
     p.density = 10.0f;                 \
 }
 
-// Turn a pasticle into buffer type
+// Turn a particle into buffer type
 // Place below arena
 #define turnIntoBuffer(p) {            \
     p.particleType = Buffer;           \
+    p.energy = 0.0f;                   \
     p.r = make_xyz(                    \
         rnd_uniform() * g.w.x,         \
         rnd_uniform() * g.w.y - g.w.y, \
         rnd_uniform() * g.w.z          \
     );                                 \
+    p.links[0] = p.links[1] = p.links[2] =     \
+    p.links[3] = p.links[4] = p.links[5] = -1; \
     p.density = g.fluidDensity;        \
+    p.signal = 0.0f;                   \
     p.color = 0.5f;                    \
     p.radius = 1.0f;                   \
     p.organism = -1;                   \
@@ -557,8 +560,11 @@ int main() {
 
     fx->applyParticleArray(pSet);
 
-    FILE *out = fopen("countCells.csv", "w");
-    fprintf(out, "nDetritus,nBuffer,nEnergy,nCells\n");
+    FILE *countCells = fopen("countCells.csv", "w");
+    fprintf(countCells, "nDetritus,nBuffer,nEnergy,nCells\n");
+
+    FILE *monitorParticle = fopen("monitorParticle.csv", "w");
+    fprintf(monitorParticle, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
 
     step = 0;
     while(step++ < g.nSteps) {
@@ -591,6 +597,10 @@ int main() {
                 if (p[i].particleType == Cell)
                     turnIntoDetritus(p[i]);
                 organismsToRemove.push_back(iOrg.first);
+
+                if (o->health <= 0) logOrgDeath(iOrg.first, step, "disintegration");
+                else logOrgDeath(iOrg.first, step, "age");
+
                 continue;
             }
             vector<float> output = o->nerveSystem.getOutput(inputs);
@@ -598,13 +608,16 @@ int main() {
             xyz f = make_xyz(output[0], output[1], output[2]);
             for (int i : o->cells) {
                 if (p[i].particleType == Cell){
+                    int *ns = p[i].links;
                     
-                    xyz front = p[i].links[Front] >= 0 ? p[p[i].links[Front]].r : make_xyz(0, 0, 1);
-                    xyz right = p[i].links[Right] >= 0 ? p[p[i].links[Right]].r : make_xyz(1, 0, 0);
-                    xyz up = p[i].links[Up] >= 0 ? p[p[i].links[Up]].r : make_xyz(0, 1, 0);
-                    xyz back = p[i].links[Back] >= 0 ? p[p[i].links[Back]].r : make_xyz(0, 0, -1);
-                    xyz left = p[i].links[Left] >= 0 ? p[p[i].links[Left]].r : make_xyz(-1, 0, 0);
-                    xyz down = p[i].links[Down] >= 0 ? p[p[i].links[Down]].r : make_xyz(0, -1, 0);
+                    xyz front = ns[Front] >= 0 ? p[ns[Front]].r : make_xyz( 0, 0, 1);
+                    xyz right = ns[Right] >= 0 ? p[ns[Right]].r : make_xyz( 1, 0, 0);
+                    xyz up    = ns[Up]    >= 0 ? p[ns[Up]].r    : make_xyz( 0, 1, 0);
+                    xyz back  = ns[Back]  >= 0 ? p[ns[Back]].r  : make_xyz( 0, 0,-1);
+                    xyz left  = ns[Left]  >= 0 ? p[ns[Left]].r  : make_xyz(-1, 0, 0);
+                    xyz down  = ns[Down]  >= 0 ? p[ns[Down]].r  : make_xyz( 0,-1, 0);
+
+                    //What if two neigbours are on opposite sides of a boundary??
 
                     Matrix3 m = getTransform(
                         front - p[i].r,
@@ -703,24 +716,34 @@ int main() {
             }
         }
 
-        if (step % 100 == 0) {
+        if (step % 10 == 0) {
             printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("buffer: %i (in queue), %i (actual)\t", particleBuffer.size(), g.nBuffer);
             printf("step %d\n", step);
             outputParticles(p, g.nParticles, step);
-            fprintf(out, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
-
+            fprintf(countCells, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
         }
 
-        if (step % 10000 == 0) fx->outputFrame("temp");
+        int mI = g.energyParticleCount+1; //Not energy
+        fprintf(
+            monitorParticle, 
+            "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%i,%d,%i,%i,%i,%i,%i,%i,%i\n", 
+            p[mI].particleType, p[mI].r.x, p[mI].r.y, p[mI].r.z, p[mI].v.x, p[mI].v.y, p[mI].v.z, p[mI].f.x, p[mI].f.y, p[mI].f.z,
+            p[mI].color, p[mI].radius, p[mI].alpha, p[mI].density, p[mI].energy, p[mI].energyIn, p[mI].energyOut, p[mI].maxEnergy,
+            p[mI].signal, p[mI].metabolism, p[mI].organism, p[mI].toBuffer, p[mI].links[0], p[mI].links[1], p[mI].links[2], p[mI].links[3],
+            p[mI].links[4], p[mI].links[5], p[mI].type
+        );
+
+        if (step % 10000 == 0) fx->outputFrame("dump");
 
         if (organisms.size() == 0) {
             printf("All organisms died. End of simulation\n");
             break;
         }
     }
-    fclose(out);
+    fclose(countCells);
+    fclose(monitorParticle);
     delete fx;
     //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }
