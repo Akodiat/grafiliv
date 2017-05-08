@@ -149,6 +149,10 @@ public class OrgInspector : MonoBehaviour {
                     color = Color.green;
                     y = 200;
                     break;
+                case NodeType.Bias:
+                    color = Color.cyan;
+                    y = 500;
+                    break;
                 default:
                     color = Color.black;
                     y = 500;
