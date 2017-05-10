@@ -118,6 +118,7 @@ FUNC_EACH(countParticles,
     }
 )
 
+#define WALL 100.0f // repulsive wall force
 // Periodic boundary conditions
 FUNC_EACH(boundary,
     // Check for wierd 1.#R values... NaN?
@@ -133,10 +134,16 @@ FUNC_EACH(boundary,
         }
     } 
     if (p.particleType != Buffer) {
+        /*
         if (p.r.x < 0)     p.r.x = g.w.x;
         if (p.r.x > g.w.x) p.r.x = 0;
         if (p.r.z < 0)     p.r.z = g.w.z;
         if (p.r.z > g.w.x) p.r.z = 0;
+        */
+        if (p.r.x < 0) p.f.x += WALL * (0 - p.r.x);
+        if (p.r.x > g.w.x) p.f.x += WALL * (g.w.x - p.r.x);
+        if (p.r.z < 0) p.f.z += WALL * (0 - p.r.z);
+        if (p.r.z > g.w.z) p.f.z += WALL * (g.w.z - p.r.z);
 
         if (p.particleType == Energy) {
             if (p.r.y < 0) {
@@ -443,7 +450,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 100 };
+    Organism organism = { genome, nerveSys, cells, -1, 200 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -488,7 +495,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 100 };
+    Organism organism = { genome, nerveSys, cells, parent, 200 };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -598,7 +605,7 @@ int main() {
                     turnIntoDetritus(p[i]);
                 organismsToRemove.push_back(iOrg.first);
 
-                if (o->health <= 0) logOrgDeath(iOrg.first, step, "disintegration");
+                if (nDead > nLiving) logOrgDeath(iOrg.first, step, "disintegration");
                 else logOrgDeath(iOrg.first, step, "age");
 
                 continue;
