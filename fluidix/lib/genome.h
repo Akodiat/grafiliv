@@ -286,6 +286,48 @@ public:
             );
     }
 
+	static bool test(){
+		string json = "\"vertices\":[{\"i\":0,\"type\":0,\"f\":2},{\"i\":1,\"type\":0,\"f\":2},{\"i\":2,\"type\":0,\"f\":2},{\"i\":3,\"type\":0,\"f\":2},{\"i\":4,\"type\":2,\"f\":2},{\"i\":5,\"type\":2,\"f\":2},{\"i\":6,\"type\":2,\"f\":2},{\"i\":7,\"type\":2,\"f\":2},{\"i\":8,\"type\":2,\"f\":2},{\"i\":9,\"type\":2,\"f\":2},{\"i\":10,\"type\":2,\"f\":2},{\"i\":11,\"type\":2,\"f\":2},{\"i\":12,\"type\":2,\"f\":2},{\"i\":13,\"type\":2,\"f\":2},{\"i\":14,\"type\":2,\"f\":2},{\"i\":15,\"type\":3,\"f\":2}],\"links\":[{\"i\":15,\"o\":4,\"w\":0.5},{\"i\":1,\"o\":10,\"w\":-2.0},{\"i\":15,\"o\":13,\"w\":0.5}],\"radius\":[1,1,1]";
+
+		Genome g(json);
+		
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Adding a connection\n");
+		g.mutateAddConnection();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+
+		printf("Adding a node\n");
+		g.mutateAddNode();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Adding a node\n");
+		g.mutateAddNode();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Adding a node\n");
+		g.mutateAddNode();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Adding a node\n");
+		g.mutateAddNode();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Removing a connection\n");
+		g.mutateRemoveConnection();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Removing a connection\n");
+		g.mutateRemoveConnection();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		
+		printf("Removing a connection\n");
+		g.mutateRemoveConnection();
+		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+				
+		return true;
+	}
+	
 private:
     vector<Connection> connections;
     map<int, Node> nodes;
@@ -374,7 +416,7 @@ private:
             // Select and disable random connection
             uniform_int_distribution<int> rndInt(0, connections.size() - 1);
             int iRndCon = rndInt(rndGen);
-            connections[iRndCon].expressed = false;
+            //connections[iRndCon].expressed = false;
 
             nodes.emplace(nextNodeId++, Node(Hidden)); // Add new node to list
             int id = nextNodeId; // Get new node's index
@@ -392,6 +434,9 @@ private:
                 connections[iRndCon].weight,
                 true
                 ));
+			
+			//Remove old connection			
+			connections.erase(connections.begin() + iRndCon);
         }
     }
 
@@ -409,6 +454,7 @@ private:
                         //Check for remaining connections to the hidden node;
                         bool connected = false;
                         for (int j = 0; j < connections.size(); j++) {
+							//Check supressed?
                             if (connections.at(j).in == i || connections.at(j).out == i){
                                 connected = true;
                                 break;
@@ -417,6 +463,7 @@ private:
                         // If there are no remaining connections to the hidden node
                         // it can be removed:
                         if (!connected) {
+							//printf("Node #%i has no remaining connections since connection %i was removed in mutation\n",i,connection);
                             nodes.erase(i);
                         }
                     }

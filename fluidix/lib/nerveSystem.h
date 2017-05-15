@@ -379,7 +379,7 @@ private:
             // Select and disable random connection
             uniform_int_distribution<int> rndInt(0, connections.size() - 1);
             int iRndCon = rndInt(rndGen);
-            connections[iRndCon].expressed = false;
+            //connections[iRndCon].expressed = false;
 
             nodes.emplace(nextNodeId++, Node(Hidden)); // Add new node to list
             int id = nextNodeId; // Get new node's index
@@ -397,6 +397,9 @@ private:
                 connections[iRndCon].weight,
                 true
                 ));
+				
+			//Remove old connection			
+			connections.erase(connections.begin() + iRndCon);
         }
     }
 

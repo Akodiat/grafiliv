@@ -234,7 +234,7 @@ FUNC_PAIR(particlePair,
         }
 
         if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, 1.0f/dr);
-        if (p2.particleType == Cell && p2.type == Sense) addFloat(p1.signal, 1.0f/dr);
+        if (p2.particleType == Cell && p2.type == Sense) addFloat(p2.signal, 1.0f/dr);
 
         addVector(p1.f, f);
         addVector(p2.f, -f);
