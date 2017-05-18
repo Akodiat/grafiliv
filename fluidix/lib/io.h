@@ -68,21 +68,21 @@ Global loadConfig(string path) {
         else if (str_eq(key,"w"))                           g.w = stoi3(val);
         else if (str_eq(key,"nParticles"))                  g.nParticles = stoi(val);
         else if (str_eq(key,"nInitialOrganisms"))           g.nInitialOrganisms = stoi(val);
-        else if (str_eq(key, "bufferSize"))                 g.bufferSize = stoi(val);
-        else if (str_eq(key, "energyParticleCount"))        g.energyParticleCount = stoi(val);
+        else if (str_eq(key,"bufferSize"))                  g.bufferSize = stoi(val);
+        else if (str_eq(key,"energyParticleCount"))         g.energyParticleCount = stoi(val);
         else if (str_eq(key,"nSteps"))                      g.nSteps = stoi(val);
         else if (str_eq(key,"nGenomeInputs"))               g.nGenomeInputs = stoi(val);
         else if (str_eq(key,"interactionRange"))            g.interactionRange = stof(val);
-        else if (str_eq(key, "moveFactor"))                 g.moveFactor = stoi(val);
-        else if (str_eq(key, "moveCost"))                   g.moveCost = stof(val);
-        else if (str_eq(key, "nerveCost"))                  g.nerveCost = stof(val);
-        else if (str_eq(key, "genomeCost"))                 g.genomeCost = stof(val);
+        else if (str_eq(key,"moveFactor"))                  g.moveFactor = stoi(val);
+        else if (str_eq(key,"moveCost"))                    g.moveCost = stof(val);
+        else if (str_eq(key,"nerveCost"))                   g.nerveCost = stof(val);
+        else if (str_eq(key,"genomeCost"))                  g.genomeCost = stof(val);
         else if (str_eq(key,"repulsiveForce"))              g.repulsiveForce = stoi(val);
         else if (str_eq(key,"springForce"))                 g.springForce = stof(val);
         else if (str_eq(key,"groundRepulsiveForce"))        g.groundRepulsiveForce = stof(val);
         else if (str_eq(key,"initialCellEnergy"))           g.initialCellEnergy = stof(val);
         else if (str_eq(key,"minCellEnergy"))               g.minCellEnergy = stof(val);
-        else if (str_eq(key, "minDetritusEnergy"))          g.minDetritusEnergy = stof(val);
+        else if (str_eq(key,"minDetritusEnergy"))           g.minDetritusEnergy = stof(val);
         else if (str_eq(key,"energyParticleEnergy"))        g.energyParticleEnergy = stof(val);
         else if (str_eq(key,"energyParticleRadius"))        g.energyParticleRadius = stof(val);
         else if (str_eq(key,"cellExistenceThreshold"))      g.cellExistenceThreshold = stof(val);
@@ -90,6 +90,9 @@ Global loadConfig(string path) {
         else if (str_eq(key,"cellDecayRate"))               g.cellDecayRate = stof(val);
         else if (str_eq(key,"fluidDensity"))                g.fluidDensity = stof(val);
         else if (str_eq(key,"gravity"))                     g.gravity = stof(val);
+        else if (str_eq(key,"saveFreq"))                    g.saveFreq = stoi(val);
+        else if (str_eq(key,"saveIntervalLength"))          g.saveIntervalLength = stoi(val);
+        else if (str_eq(key,"saveIntervalDistance"))        g.saveIntervalDistance = stoi(val);
     }
 
     file.close();

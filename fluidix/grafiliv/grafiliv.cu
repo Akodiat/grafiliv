@@ -570,8 +570,8 @@ int main() {
     FILE *countCells = fopen("countCells.csv", "w");
     fprintf(countCells, "nDetritus,nBuffer,nEnergy,nCells\n");
 
-    FILE *monitorParticle = fopen("monitorParticle.csv", "w");
-    fprintf(monitorParticle, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
+    //FILE *monitorParticle = fopen("monitorParticle.csv", "w");
+    //fprintf(monitorParticle, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
 
     step = 0;
     while(step++ < g.nSteps) {
@@ -723,16 +723,24 @@ int main() {
             }
         }
 
-        if (step % 10 == 0) {
+        if (step % g.saveFreq == 0){
+            fprintf(countCells, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
+        }
+
+        if (
+            (step % g.saveFreq == 0) &&
+            (((int)(step / g.saveIntervalLength)) % (g.saveIntervalDistance / g.saveIntervalLength)) == 0)
+        {
             printf("nOrgs: %i\t", organisms.size());
             printf("currgenomeIndex: %i\t", currGenomeIndex);
             printf("buffer: %i (in queue), %i (actual)\t", particleBuffer.size(), g.nBuffer);
             printf("step %d\n", step);
             outputParticles(p, g.nParticles, step);
-            fprintf(countCells, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
         }
+        else if (step % 100 == 0) printf(".");
 
-        int mI = g.energyParticleCount+1; //Not energy
+        //int mI = g.energyParticleCount+1; //Not energy
+        /*
         fprintf(
             monitorParticle, 
             "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%i,%d,%i,%i,%i,%i,%i,%i,%i\n", 
@@ -741,6 +749,7 @@ int main() {
             p[mI].signal, p[mI].metabolism, p[mI].organism, p[mI].toBuffer, p[mI].links[0], p[mI].links[1], p[mI].links[2], p[mI].links[3],
             p[mI].links[4], p[mI].links[5], p[mI].type
         );
+        */
 
         if (step % 10000 == 0) fx->outputFrame("dump");
 
@@ -750,7 +759,7 @@ int main() {
         }
     }
     fclose(countCells);
-    fclose(monitorParticle);
+    //fclose(monitorParticle);
     delete fx;
     //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
 }

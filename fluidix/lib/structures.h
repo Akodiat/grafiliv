@@ -34,11 +34,14 @@ struct Global {
     float cellDecayRate;
     float fluidDensity;
     float gravity;
+    int saveFreq;
+    int saveIntervalLength;
+    int saveIntervalDistance;
 
-   int nDetritus;
-   int nBuffer;
-   int nEnergy;
-   int nCells;
+    int nDetritus;
+    int nBuffer;
+    int nEnergy;
+    int nCells;
 } g;
 
 struct Organism {

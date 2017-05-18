@@ -26,3 +26,6 @@ cellMetabolism              = 0.2
 cellDecayRate               = 0.05
 fluidDensity                = 1.0
 gravity                     = -9.81
+saveFreq                    = 10
+saveIntervalLength          = 10000
+saveIntervalDistance        = 1000000
