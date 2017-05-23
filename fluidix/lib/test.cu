@@ -2,5 +2,6 @@
 #include "../lib/genome.h"
 
 int main() {
-    Genome::test();
+    if(Genome::test())
+		printf("Genome tests all OK\n");
 }

@@ -29,3 +29,4 @@ gravity                     = -9.81
 saveFreq                    = 10
 saveIntervalLength          = 10000
 saveIntervalDistance        = 1000000
+orgInitHealth               = 200

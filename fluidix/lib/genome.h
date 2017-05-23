@@ -123,7 +123,7 @@ public:
             int id = stoi(idMatch.str());
             ActivationFunction f = (ActivationFunction)stoi(fMatch.str());
 
-            if (id > nextNodeId) nextNodeId = id + 1;
+            if (id >= nextNodeId) nextNodeId = id + 1;
 
             Node node(type, f);
             nodes.emplace(id, node);
@@ -287,44 +287,90 @@ public:
     }
 
 	static bool test(){
-		string json = "\"vertices\":[{\"i\":0,\"type\":0,\"f\":2},{\"i\":1,\"type\":0,\"f\":2},{\"i\":2,\"type\":0,\"f\":2},{\"i\":3,\"type\":0,\"f\":2},{\"i\":4,\"type\":2,\"f\":2},{\"i\":5,\"type\":2,\"f\":2},{\"i\":6,\"type\":2,\"f\":2},{\"i\":7,\"type\":2,\"f\":2},{\"i\":8,\"type\":2,\"f\":2},{\"i\":9,\"type\":2,\"f\":2},{\"i\":10,\"type\":2,\"f\":2},{\"i\":11,\"type\":2,\"f\":2},{\"i\":12,\"type\":2,\"f\":2},{\"i\":13,\"type\":2,\"f\":2},{\"i\":14,\"type\":2,\"f\":2},{\"i\":15,\"type\":3,\"f\":2}],\"links\":[{\"i\":15,\"o\":4,\"w\":0.5},{\"i\":1,\"o\":10,\"w\":-2.0},{\"i\":15,\"o\":13,\"w\":0.5}],\"radius\":[1,1,1]";
+		string json = "\"vertices\":[{\"i\":0,\"type\":0,\"f\":2},{\"i\":1,\"type\":2,\"f\":2},{\"i\":2,\"type\":2,\"f\":2}],\"links\":[{\"i\":0,\"o\":1,\"w\":0.500000},{\"i\":2,\"o\":1,\"w\":-2.000000}],\"radius\":[1,1,1]";
 
 		Genome g(json);
 		
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		string json1 = "\"genome\":{"+json+"}";
+        string json2 = g.toJSON();
+		if(json2.compare(json1) != 0){
+			printf(
+				"Exported JSON not equal to imported:\n%s\n ---\n%s\n",
+                json1.c_str(),
+                json2.c_str()
+			);
+			return false;
+		}
 		
-		printf("Adding a connection\n");
+		int nConnections = 2;
+		int nNodes = 3;
+		
+		if(nConnections != g.connections.size()){
+			printf(
+				"Incorrect # of connections (correct: %i, actual: %i)\n",
+				nConnections, g.connections.size()
+			);
+			return false;
+		}
+		if(nNodes != g.nodes.size()){
+			printf(
+				"Incorrect # of nodes (correct: %i, actual: %i)\n",
+				nNodes, g.nodes.size()
+			);
+			return false;
+		}
+		if(
+			g.boundingRadius.x != 1 || 
+			g.boundingRadius.y != 1 ||
+			g.boundingRadius.z != 1
+		){
+			printf("Incorrect bounding radius (correct: (1,1,1), actual: (%i,%i,%i))\n",
+				g.boundingRadius.x,
+				g.boundingRadius.y,
+				g.boundingRadius.z
+			);
+			return false;
+		}
+		
 		g.mutateAddConnection();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
-
-		printf("Adding a node\n");
-		g.mutateAddNode();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		nConnections++;
 		
-		printf("Adding a node\n");
-		g.mutateAddNode();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		if(g.connections.size() != nConnections){
+			printf(
+				"Incorrect add connection mutation (correct: %i, actual: %i)\n",
+				nConnections, g.connections.size()
+			);
+			return false;
+		}
 		
-		printf("Adding a node\n");
 		g.mutateAddNode();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		nConnections++;
+		nNodes++;
 		
-		printf("Adding a node\n");
-		g.mutateAddNode();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		if(
+			g.connections.size() != nConnections ||
+			g.nodes.size() != nNodes)
+		{
+			printf(
+				"Incorrect add node mutation \n\tconnections:(correct: %i, actual: %i)\n\tnodes:(correct: %i, actual: %i)\n",
+				nConnections, g.connections.size(),
+				nNodes, g.nodes.size()
+			);
+			return false;
+		}
 		
-		printf("Removing a connection\n");
 		g.mutateRemoveConnection();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		nConnections--;
 		
-		printf("Removing a connection\n");
-		g.mutateRemoveConnection();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
+		if(g.connections.size() != nConnections)
+		{
+			printf(
+				"Incorrect remove connection mutation (correct: %i, actual: %i)\n",
+				nConnections, g.connections.size()
+			);
+			return false;
+		}
 		
-		printf("Removing a connection\n");
-		g.mutateRemoveConnection();
-		printf("Connections size: %i\t Nodes size: %i\n", g.connections.size(), g.nodes.size());
-				
 		return true;
 	}
 	

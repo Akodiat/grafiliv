@@ -92,7 +92,8 @@ Global loadConfig(string path) {
         else if (str_eq(key,"gravity"))                     g.gravity = stof(val);
         else if (str_eq(key,"saveFreq"))                    g.saveFreq = stoi(val);
         else if (str_eq(key,"saveIntervalLength"))          g.saveIntervalLength = stoi(val);
-        else if (str_eq(key,"saveIntervalDistance"))        g.saveIntervalDistance = stoi(val);
+        else if (str_eq(key, "saveIntervalDistance"))       g.saveIntervalDistance = stoi(val);
+        else if (str_eq(key, "orgInitHealth"))              g.orgInitHealth = stof(val);
     }
 
     file.close();
@@ -108,8 +109,7 @@ void loadOrg(
 {
     ifstream t(path);
     if (t){
-
-        std::stringstream buffer;
+        stringstream buffer;
         buffer << t.rdbuf();
 
         string org = buffer.str();
@@ -144,6 +144,41 @@ void loadOrg(
         spawnOrganism(
             origin, particleBuffer, p, genome, nerveSys, organisms
             );
+    }
+    else {
+        cerr << "Could not load organism from file: " << path << endl;
+    }
+}
+
+void loadGenomeAndNerves(string path, Genome *g, NerveSystem *n, int *parent, int *step)
+{
+    ifstream t(path);
+    if (t){
+        stringstream buffer;
+        buffer << t.rdbuf();
+
+        string org = buffer.str();
+
+        smatch match;
+
+        regex genome_regex("\"genome\":\\{(.*)\\}");
+        regex nerve_regex("\"nervesystem\":\\{(.*)\\}");
+        regex parent_regex("\"parent\":(.*)");
+        regex step_regex("\"step\":(.*)");
+
+        regex_search(org, match, genome_regex);
+        string sGenome = match[1];
+        *g = Genome(sGenome);
+
+        regex_search(org, match, nerve_regex);
+        string sNerveSys = match[1];
+        *n = NerveSystem(sNerveSys);
+
+        regex_search(org, match, parent_regex);
+        *parent = stoi(match[1]);
+
+        regex_search(org, match, step_regex);
+        *step = stoi(match[1]);
     }
     else {
         cerr << "Could not load organism from file: " << path << endl;
@@ -193,44 +228,159 @@ void outputOrganism(Organism *o, int organismID, int creationStep){
     fclose(out);
 }
 
-/*
-void outputParticles(Particle *p, int nParticles, int step) {
-    char out_name[256];
-    sprintf(out_name, "output/frame%d.json", step);
-
-    mkdir("output");
-    FILE *out = fopen(out_name, "wb");
-    if (!out) {
+void dumpCompleteState(Particle *p, int nParticles, int step){
+    mkdir("stateDump");
+    FILE *out_particles = fopen("stateDump/particles.csv", "wb");
+    if (!out_particles) {
         perror("Cannot open file: ");
-        QUIT("error opening output file %s\n", out_name);
+        QUIT("error opening output file %s\n", "particles.csv");
     }
 
-    fprintf(out, "{\"Items\":[\n");
-    bool first = true;
+    FILE *out_step = fopen("stateDump/step.txt", "wb");
+    fprintf(out_step, "%i", step);
+    fclose(out_step);
+
+    fprintf(out_particles, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
+
     for (int i = 0; i < nParticles; i++) {
-        if (p[i].particleType == Cell || p[i].particleType == Detritus) {
-            if (first){
-                first = false;
-            }
-            else {
-                fprintf(out, ",");
-            }
-            fprintf(out,
-                //"pt:%i, ct:%i, o:%i, x:%f, y:%f, z:%f",
-                "{\"pt\":%i,\"ct\":%i,\"o\":%i,\"e\":%f,\"r\":%f,\"x\":%f,\"y\":%f,\"z\":%f}\n",
-                (int)p[i].particleType,
-                (int)p[i].type,
-                p[i].organism,
-                p[i].energy,
-                p[i].radius,
-                p[i].r.x, p[i].r.y, p[i].r.z
-                );
-        }
+        fprintf(
+            out_particles,
+            "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%i,%d,%i,%i,%i,%i,%i,%i,%i\n",
+            p[i].particleType, p[i].r.x, p[i].r.y, p[i].r.z, p[i].v.x, p[i].v.y, p[i].v.z, p[i].f.x, p[i].f.y, p[i].f.z,
+            p[i].color, p[i].radius, p[i].alpha, p[i].density, p[i].energy, p[i].energyIn, p[i].energyOut, p[i].maxEnergy,
+            p[i].signal, p[i].metabolism, p[i].organism, p[i].toBuffer, p[i].links[0], p[i].links[1], p[i].links[2], p[i].links[3],
+            p[i].links[4], p[i].links[5], p[i].type
+            );
     }
-    fprintf(out, "]}");
-    fclose(out);
+
+    fclose(out_particles);
 }
-*/
+
+int indexOf(string s, vector<string> v){
+    ptrdiff_t i = find(v.begin(), v.end(), s) - v.begin();
+    if (i >= v.size()) i = -1;
+    return (int)i;
+}
+
+// Recursive string split
+vector<string> split(string s, string delim) {
+    //Allocate return vector
+    vector<string> items;
+    items.reserve(s.size());
+
+    //Find first delimiter position
+    size_t delimPos = s.find_first_of(delim);
+
+    //If found, add everything before it as first item
+    //and call split recursively with the rest
+    if (delimPos != string::npos) {
+        //Add first item to vector
+        string item = s.substr(0, delimPos);
+        items.insert(items.end(), item);
+        //Add the rest of the items to vector
+        vector<string> rest = split(s.substr(delimPos + delim.length()), delim);
+        items.insert(items.end(), rest.begin(), rest.end());
+    }
+    //If no delimiter is found, this is the last item.
+    else {
+        items.insert(items.end(), s);
+    }
+    return items;
+}
+
+void loadCompleteState(OrganismMap *organisms, Particle *p, ParticleBuffer *particleBuffer, Fluidix<> *fx, int pSet, int *step, int *currGenomeIndex) {
+    ifstream stepStream("stateDump/step.txt");
+    if (stepStream) {
+        stringstream buffer;
+        buffer << stepStream.rdbuf();
+        string stepString = buffer.str();
+        *step = stoi(stepString);
+    }
+    else
+    {
+        cerr << "Could not find file stateDump/step.txt" << endl;
+    }
+
+    ifstream particlesFileStream("stateDump/particles.csv");
+    std::string line;
+    getline(particlesFileStream, line);
+    vector<string> headings = split(line, ",");
+
+    int i = 0;
+    while (getline(particlesFileStream, line))
+    {
+        if (i >= fx->getParticleCount(pSet)){
+            fx->resizeParticleSet(pSet, i);
+            printf("Loading state, increasing particle count to %i", i);
+        }
+        vector<string> items = split(line, ",");
+
+        p[i].particleType = (ParticleType)stoi(items[indexOf("particleType", headings)]);
+        p[i].r.x = stof(items[indexOf("r.x", headings)]);
+        p[i].r.y = stof(items[indexOf("r.y", headings)]);
+        p[i].r.z = stof(items[indexOf("r.z", headings)]);
+        p[i].v.x = stof(items[indexOf("v.x", headings)]);
+        p[i].v.y = stof(items[indexOf("v.y", headings)]);
+        p[i].v.z = stof(items[indexOf("v.z", headings)]);
+        p[i].f.x = stof(items[indexOf("f.x", headings)]);
+        p[i].f.y = stof(items[indexOf("f.y", headings)]);
+        p[i].f.z = stof(items[indexOf("f.z", headings)]);
+        p[i].color = stoi(items[indexOf("color", headings)]);
+        p[i].radius = stof(items[indexOf("radius", headings)]);
+        p[i].alpha = stof(items[indexOf("alpha", headings)]);
+        p[i].density = stof(items[indexOf("density", headings)]);
+        p[i].energy = stof(items[indexOf("energy", headings)]);
+        p[i].energyIn = stof(items[indexOf("energyIn", headings)]);
+        p[i].energyOut = stof(items[indexOf("energyOut", headings)]);
+        p[i].maxEnergy = stof(items[indexOf("maxEnergy", headings)]);
+        p[i].signal = stof(items[indexOf("signal", headings)]);
+        p[i].metabolism = stof(items[indexOf("metabolism", headings)]);
+        p[i].organism = stoi(items[indexOf("organism", headings)]);
+        p[i].toBuffer = stoi(items[indexOf("toBuffer", headings)]);
+        p[i].links[0] = stoi(items[indexOf("link0", headings)]);
+        p[i].links[1] = stoi(items[indexOf("link1", headings)]);
+        p[i].links[2] = stoi(items[indexOf("link2", headings)]);
+        p[i].links[3] = stoi(items[indexOf("link3", headings)]);
+        p[i].links[4] = stoi(items[indexOf("link4", headings)]);
+        p[i].links[5] = stoi(items[indexOf("link5", headings)]);
+        p[i].type = (CellType)stoi(items[indexOf("type", headings)]);
+
+        //If cell, build up organism map
+        if (p[i].particleType == Cell && p[i].organism != -1) {
+            Organism o;
+            try {
+                o = organisms->at(p[i].organism);
+            }
+            catch (const std::out_of_range& e) {
+                Genome genome;
+                NerveSystem nervousSystem;
+                int parent, birthStep;
+
+                char path[256];
+                sprintf(path, "organisms/org%d.json", p[i].organism);
+                loadGenomeAndNerves(path, &genome, &nervousSystem, &parent, &birthStep);
+
+                o.genome = genome;
+                o.nerveSystem = nervousSystem;
+                o.parent = parent;
+                o.health = g.orgInitHealth - g.dt * (*step - birthStep);
+
+                if (*currGenomeIndex < p[i].organism)
+                    *currGenomeIndex = p[i].organism;
+            }
+            o.cells.push_back(i);
+            int orgID = p[i].organism;
+            organisms->operator[](orgID) = o;
+        }
+        //If instead buffer, build upp the buffer queue
+        else if (p[i].particleType == Buffer){
+            particleBuffer->push(i);
+        }
+        i++;
+    }
+    fx->resizeParticleSet(pSet, i);
+    g.nParticles = i;
+}
 
 void outputParticles(Particle *p, int nParticles, int step) {
     char out_name[256];

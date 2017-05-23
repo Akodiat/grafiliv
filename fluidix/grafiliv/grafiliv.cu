@@ -450,7 +450,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, -1, 200 };
+    Organism organism = { genome, nerveSys, cells, -1, g.orgInitHealth };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -495,7 +495,7 @@ int spawnOrganism(
     int organismID    = o.first;
     vector<int> cells = o.second;
 
-    Organism organism = { genome, nerveSys, cells, parent, 200 };
+    Organism organism = { genome, nerveSys, cells, parent, g.orgInitHealth };
 
     //Add organism to organism map
     organisms->emplace(organismID, organism);
@@ -545,25 +545,38 @@ int main() {
 
     Particle *p = fx->getParticleArray(pSet);
 
-    int i = 0;
-    int neededEnergy = g.energyParticleCount;
-      
-    // Initialize energy particles
-    while(neededEnergy--) {
-        p[i].r.y = rnd_uniform() * g.w.y;
-        resetEnergy(p[i]);
-        i++;
-    }
 
-    // Turn the rest of the particles into buffer
-    while (i < g.nParticles) {
-        turnIntoBuffer(p[i]);
-        particleBuffer.push(i);
-        i++;
+    cout << endl << endl << "Would you like to load a saved state dump?" << endl;
+    cout << "(or rather start anew?)\ty/n: ";
+    char choice;
+    cin >> choice;
+    if (choice == 'y') {
+        loadCompleteState(&organisms, p, &particleBuffer, fx, pSet, &step, &currGenomeIndex);
+        fx->applyParticleArray(pSet);
     }
+    else if (choice == 'n') {
+        step = 0;
+        int i = 0;
+        int neededEnergy = g.energyParticleCount;
 
-    //for (int i = 0; i < 1000; i++)
-    loadOrg("initOrg.json", &particleBuffer, p, &organisms);
+        // Initialize energy particles
+        while (neededEnergy--) {
+            p[i].r.y = rnd_uniform() * g.w.y;
+            resetEnergy(p[i]);
+            i++;
+        }
+
+        // Turn the rest of the particles into buffer
+        while (i < g.nParticles) {
+            turnIntoBuffer(p[i]);
+            particleBuffer.push(i);
+            i++;
+        }
+
+        //for (int i = 0; i < 1000; i++)
+        loadOrg("initOrg.json", &particleBuffer, p, &organisms);
+    }
+    else return -1;
 
     fx->applyParticleArray(pSet);
 
@@ -573,7 +586,6 @@ int main() {
     //FILE *monitorParticle = fopen("monitorParticle.csv", "w");
     //fprintf(monitorParticle, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
 
-    step = 0;
     while(step++ < g.nSteps) {
         fx->runEach(boundary(), pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
@@ -751,7 +763,10 @@ int main() {
         );
         */
 
-        if (step % 10000 == 0) fx->outputFrame("dump");
+        if (step % 10000 == 0) {
+            fx->outputFrame("dump");
+            dumpCompleteState(p, g.nParticles, step);
+        }
 
         if (organisms.size() == 0) {
             printf("All organisms died. End of simulation\n");
@@ -762,4 +777,5 @@ int main() {
     //fclose(monitorParticle);
     delete fx;
     //system("shutdown -s -c \"Simulation done, shutting down in two minutes\" -t 120");
+    return 1;
 }

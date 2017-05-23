@@ -37,6 +37,7 @@ struct Global {
     int saveFreq;
     int saveIntervalLength;
     int saveIntervalDistance;
+    float orgInitHealth;
 
     int nDetritus;
     int nBuffer;
