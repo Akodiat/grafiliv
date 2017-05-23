@@ -15,7 +15,7 @@ public class OrgInspector : MonoBehaviour {
     public GameObject canvas;
     public Texture2D point;
 
-    private List<Node> nodes = new List<Node>();
+    private Dictionary<int, Node> nodes = new Dictionary<int, Node>();
     private List<Connection> connections = new List<Connection>();
 
     private static int trimRadius = 25;
@@ -43,8 +43,8 @@ public class OrgInspector : MonoBehaviour {
     //Remove old nodes and connections
     public void unloadOrganism()
     {
-        foreach (Node node in nodes)
-            Destroy(node.getGameObject());
+        foreach (KeyValuePair<int, Node> e in nodes)
+            Destroy(e.Value.getGameObject());
         nodes.Clear();
         connections.Clear();
     }
@@ -69,16 +69,14 @@ public class OrgInspector : MonoBehaviour {
         for (int i = 0; i < org.genome.vertices.Count; i++)
         {
             var v = org.genome.vertices[i];
-            Node node = new Node(i, v.type, v.f, nodePrefab, canvas);
-            nodes.Add(node);
+            Node node = new Node(v.i, v.type, v.f, nodePrefab, canvas);
+            nodes.Add(v.i, node);
         }
         for(int i=0; i < org.genome.links.Count; i++)
         {
             var c = org.genome.links[i];
             if (c.i == c.o) continue; //Ignore self connections at the moment
-            print(nodes.Count);
-            print(c.i);
-            print(c.o);
+            print(nodes.Count + " nodes\ti: "+c.i+"\to: "+c.o);
             connections.Add(new Connection(nodes[c.i], nodes[c.o], c.w));
         }
     }
