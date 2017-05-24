@@ -269,7 +269,7 @@ bool applyPhenotype(vector<float> output, Particle *cell) {
     //float volume = sphereVolume(cell->radius);
     //float mass = 1.0f;
 
-    cell->density = g.fluidDensity * 1.1f; //mass/volume;
+    cell->density = g.fluidDensity * 1.3f; //mass/volume;
 
     float max = output[0]; cell->type = (CellType)0;
     for (int j = 1; j<N_CELL_TYPES; j++) {
@@ -526,6 +526,74 @@ Matrix3 getTransform(xyz front, xyz right, xyz up, xyz back, xyz left, xyz down)
     );
 }
 
+void addTerrainLink(int n1, int n2, Fluidix<> *fx, int meshLinks, int meshParticles, vector<tuple<int, int>> *links){
+    fx->addLink(meshLinks, meshParticles, n1, meshParticles, n2);
+    links->push_back(make_tuple(n1, n2));
+}
+
+int generateTerrain(Fluidix<> *fx){
+    exponential_distribution<float> rndUniform(1);
+
+    int terrDimX = 10;
+    int terrDimZ = 10;
+
+    int nParticles = (terrDimX*terrDimZ * 2);
+
+    int meshParticles = fx->createParticleSet(nParticles);
+    int meshLinks = fx->createLinkSet();
+    Particle *mesh = fx->getParticleArray(meshParticles);
+
+    vector<tuple<int, int>> links;
+
+    float dx = g.w.x / (terrDimX - 1);
+    float dz = g.w.z / (terrDimZ - 1);
+
+    float margin = 1.2f;
+    float shiftX = ((margin - 1)*g.w.x) / 2;
+    float shiftZ = ((margin - 1)*g.w.z) / 2;
+
+    for (int x = 0; x < terrDimX; x++)
+    for (int z = 0; z < terrDimX; z++){
+        int i = x*terrDimZ + z;
+        mesh[i].r = make_xyz(
+            (x*dx)*margin - shiftX,
+            rndUniform(rndGen) * 10 + 10,
+            (z*dz)*margin - shiftZ
+            );
+        mesh[i + nParticles / 2].r = make_xyz(
+            x*dx,
+            0,
+            z*dz
+            );
+
+        //Link terrain particles together:
+        int s = (x - 1)*terrDimZ + z;
+        int w = x*terrDimZ + (z - 1);
+        int sw = (x - 1)*terrDimZ + (z - 1);
+
+        if ((x - 1) >= 0) addTerrainLink(i, s, fx, meshLinks, meshParticles, &links);//fx->addLink(meshLinks, meshParticles, i, meshParticles, s);
+        if ((z - 1) >= 0) addTerrainLink(i, w, fx, meshLinks, meshParticles, &links);//fx->addLink(meshLinks, meshParticles, i, meshParticles, w);
+        if ((x - 1) >= 0 && (z - 1) >= 0) addTerrainLink(i, sw, fx, meshLinks, meshParticles, &links);//fx->addLink(meshLinks, meshParticles, i, meshParticles, sw);
+
+        if ((x - 1) >= 0) addTerrainLink(i + (nParticles / 2), s + (nParticles / 2), fx, meshLinks, meshParticles, &links); //fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, s + (nParticles / 2));
+        if ((z - 1) >= 0) addTerrainLink(i + (nParticles / 2), w + (nParticles / 2), fx, meshLinks, meshParticles, &links); //fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, w + (nParticles / 2));
+        if ((x - 1) >= 0 && (z - 1) >= 0) addTerrainLink(i + (nParticles / 2), sw + (nParticles / 2), fx, meshLinks, meshParticles, &links); //fx->addLink(meshLinks, meshParticles, i + (nParticles / 2), meshParticles, sw + (nParticles / 2));
+
+        if (x % (terrDimX - 1) == 0 || z % (terrDimZ - 1) == 0){
+            //fx->addLink(meshLinks, meshParticles, i, meshParticles, i + (nParticles / 2));
+            addTerrainLink(i, i + (nParticles / 2), fx, meshLinks, meshParticles, &links);
+
+            //if (x > 0 && z > 0) fx->addLink(meshLinks, meshParticles, i, meshParticles, s + (nParticles / 2));
+        }
+        fx->applyParticleArray(meshParticles);
+
+        saveTerrain(mesh, links, nParticles);
+
+        fx->outputFrame("dump");
+    }
+    return meshLinks;
+}
+
 int main() {
     // Create Fluidix library object
     Fluidix<> *fx = new Fluidix<>(&g);
@@ -536,6 +604,7 @@ int main() {
     // Create a particle set with number of particles
     // equal to g.nParticles
     int pSet = fx->createParticleSet(g.nParticles);
+    int terrain = generateTerrain(fx);
 
     currGenomeIndex = 0;
     OrganismMap organisms;
@@ -588,6 +657,7 @@ int main() {
 
     while(step++ < g.nSteps) {
         fx->runEach(boundary(), pSet);
+        fx->runSurface(collideGround(), terrain, pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
 
         p = fx->getParticleArray(pSet);

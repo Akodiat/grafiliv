@@ -409,4 +409,36 @@ void outputParticles(Particle *p, int nParticles, int step) {
     fclose(out);
 }
 
+void saveTerrain(Particle *p, vector<tuple<int, int>> links, int nParticles) {
+    mkdir("terrain");
+    FILE *outMesh = fopen("terrain/mesh.csv", "wb");
+    if (!outMesh) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file: terrain/mesh.csv\n");
+    }
+
+    fprintf(outMesh, "x,y,z\n");
+    for (int i = 0; i < nParticles; i++) {
+        fprintf(outMesh, "%f,%f,%f\n",
+            p[i].r.x, p[i].r.y, p[i].r.z
+        );
+    }
+    fclose(outMesh);
+
+    FILE *outMeshLinks = fopen("terrain/links.csv", "wb");
+    if (!outMeshLinks) {
+        perror("Cannot open file: ");
+        QUIT("error opening output file: terrain/links.csv\n");
+    }
+
+    fprintf(outMeshLinks, "i,o\n");
+    for (int i = 0; i < links.size(); i++) {
+        fprintf(outMeshLinks, "%i,%i\n",
+            get<0>(links[i]),
+            get<1>(links[i])
+        );
+    }
+    fclose(outMeshLinks);
+}
+
 #endif
