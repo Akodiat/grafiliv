@@ -819,6 +819,10 @@ int main() {
             printf("step %d\n", step);
             outputParticles(p, g.nParticles, step);
         }
+        else if (step % 10000 == 0) {
+            printf("+\n");
+            outputParticles(p, g.nParticles, step);
+        }
         else if (step % 100 == 0) printf(".");
 
         //int mI = g.energyParticleCount+1; //Not energy
