@@ -699,22 +699,22 @@ int main() {
                 if (p[i].particleType == Cell){
                     int *ns = p[i].links;
                     
-                    xyz front = ns[Front] >= 0 ? p[ns[Front]].r : make_xyz( 0, 0, 1);
-                    xyz right = ns[Right] >= 0 ? p[ns[Right]].r : make_xyz( 1, 0, 0);
-                    xyz up    = ns[Up]    >= 0 ? p[ns[Up]].r    : make_xyz( 0, 1, 0);
-                    xyz back  = ns[Back]  >= 0 ? p[ns[Back]].r  : make_xyz( 0, 0,-1);
-                    xyz left  = ns[Left]  >= 0 ? p[ns[Left]].r  : make_xyz(-1, 0, 0);
-                    xyz down  = ns[Down]  >= 0 ? p[ns[Down]].r  : make_xyz( 0,-1, 0);
+                    xyz front = ns[Front] >= 0 ? p[ns[Front]].r - p[i].r : make_xyz(0, 0, 1);
+                    xyz right = ns[Right] >= 0 ? p[ns[Right]].r - p[i].r : make_xyz(1, 0, 0);
+                    xyz up =    ns[Up]    >= 0 ? p[ns[Up]].r    - p[i].r : make_xyz(0, 1, 0);
+                    xyz back =  ns[Back]  >= 0 ? p[ns[Back]].r  - p[i].r : make_xyz(0, 0, -1);
+                    xyz left =  ns[Left]  >= 0 ? p[ns[Left]].r  - p[i].r : make_xyz(-1, 0, 0);
+                    xyz down =  ns[Down]  >= 0 ? p[ns[Down]].r  - p[i].r : make_xyz(0, -1, 0);
 
                     //What if two neigbours are on opposite sides of a boundary??
 
                     Matrix3 m = getTransform(
-                        front - p[i].r,
-                        right - p[i].r,
-                        up - p[i].r,
-                        back - p[i].r,
-                        left - p[i].r,
-                        down - p[i].r
+                        front,
+                        right,
+                        up,
+                        back,
+                        left,
+                        down
                     );
                     p[i].f += m.dot(f) * g.moveFactor;
                     
