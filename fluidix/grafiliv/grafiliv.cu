@@ -604,7 +604,8 @@ int main() {
     // Create a particle set with number of particles
     // equal to g.nParticles
     int pSet = fx->createParticleSet(g.nParticles);
-    int terrain = generateTerrain(fx);
+    int2 terrain = fx->importModel("terrain.stl", make_xyz(g.w.x / 2, 0, g.w.z / 2), minf(g.w.x,g.w.z) / 9.0f);
+    //int terrain = generateTerrain(fx);
 
     currGenomeIndex = 0;
     OrganismMap organisms;
@@ -657,7 +658,7 @@ int main() {
 
     while(step++ < g.nSteps) {
         fx->runEach(boundary(), pSet);
-        fx->runSurface(collideGround(), terrain, pSet);
+        fx->runSurface(collideGround(), terrain.y, pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
 
         p = fx->getParticleArray(pSet);
