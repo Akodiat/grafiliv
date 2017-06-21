@@ -139,7 +139,8 @@ void loadOrg(
         */
 
         //Position in center:
-        xyz origin = make_xyz(g.w.x / 2, g.w.y / 2, g.w.z / 2);
+        //xyz origin = make_xyz(g.w.x / 2, g.w.y / 2, g.w.z / 2);
+        xyz origin = make_xyz(g.w.x / 2, g.w.y *0.9f, g.w.z / 2);
 
         spawnOrganism(
             origin, particleBuffer, p, genome, nerveSys, organisms

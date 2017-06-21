@@ -3,6 +3,15 @@
 
 using namespace std;
 
+//Three-dimensional vector cross product
+xyz cross(xyz a, xyz b){
+    return make_xyz(
+        -a.z*b.y + a.y*b.z,
+        a.z*b.x - a.x*b.z,
+        -a.y*b.x + a.x*b.y
+    );
+}
+
 class Matrix3
 {
 public:

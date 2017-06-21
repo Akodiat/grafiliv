@@ -94,13 +94,16 @@ FUNC_EACH(handleEnergy,
         if (p.energy <= 0)
             p.toBuffer = true;
     }
-)
+    )
 
 // Particles float depending on their density
 FUNC_EACH(buoyancy,
+    float fluidDensity = g.fluidDensity;
+    if (p.r.y > g.w.y * 0.5f)
+        fluidDensity = 0.001f;
     float volume = sphereVolume(p.radius);
     float weight = p.density * volume;
-    float displacedFluidWeight = g.fluidDensity * volume;
+    float displacedFluidWeight = fluidDensity * volume;
     float apparentWeight = weight - displacedFluidWeight;
     p.f.y += apparentWeight * g.gravity;
 )
@@ -243,7 +246,7 @@ FUNC_PAIR(particlePair,
 
 // Collision with terrain
 FUNC_SURFACE(collideGround,
-	if (p.particleType != Energy){
+	if (p.particleType == Cell || p.particleType == Detritus){
 		if (dr > 1) dr = 1;
 		p.f += g.groundRepulsiveForce * u * dr;
 	}
@@ -518,11 +521,16 @@ int initializeOrganism(ParticleBuffer *particleBuffer, Particle *p, OrganismMap 
     return spawnOrganism(origin, particleBuffer, p, -1, organisms);
 }
 
-Matrix3 getTransform(xyz front, xyz right, xyz up, xyz back, xyz left, xyz down) {
+#define xyz_norm2(p) xyz_lensq(p) == 0.0f ? p : xyz_norm(p)
+Matrix3 getTransform(xyz xPlus, xyz xMinus, xyz yPlus, xyz yMinus, xyz zPlus, xyz zMinus) {
+    xyz x = xPlus - xMinus;
+    xyz y = yPlus - yMinus;
+    xyz z = zPlus - zMinus;
+
     return Matrix3(
-        xyz_norm(right - left),
-        xyz_norm(up - down),
-        xyz_norm(front - back)
+        xyz_norm2(x + cross(y,z)),
+        xyz_norm2(y + cross(z,x)),
+        xyz_norm2(z + cross(x,y))
     );
 }
 
@@ -700,23 +708,23 @@ int main() {
                 if (p[i].particleType == Cell){
                     int *ns = p[i].links;
                     
-                    xyz front = ns[Front] >= 0 ? p[ns[Front]].r - p[i].r : make_xyz(0, 0, 1);
-                    xyz right = ns[Right] >= 0 ? p[ns[Right]].r - p[i].r : make_xyz(1, 0, 0);
-                    xyz up =    ns[Up]    >= 0 ? p[ns[Up]].r    - p[i].r : make_xyz(0, 1, 0);
-                    xyz back =  ns[Back]  >= 0 ? p[ns[Back]].r  - p[i].r : make_xyz(0, 0, -1);
-                    xyz left =  ns[Left]  >= 0 ? p[ns[Left]].r  - p[i].r : make_xyz(-1, 0, 0);
-                    xyz down =  ns[Down]  >= 0 ? p[ns[Down]].r  - p[i].r : make_xyz(0, -1, 0);
-
-                    //What if two neigbours are on opposite sides of a boundary??
-
+                    xyz xPlus = ns[Left] >= 0 ? p[ns[Left]].r - p[i].r : make_xyz(0, 0, 0);
+                    xyz xMinus = ns[Right] >= 0 ? p[ns[Right]].r - p[i].r : make_xyz(0, 0, 0);
+                    xyz yPlus = ns[Up] >= 0 ? p[ns[Up]].r - p[i].r : make_xyz(0, 0, 0);
+                    xyz yMinus = ns[Down] >= 0 ? p[ns[Down]].r - p[i].r : make_xyz(0, 0, 0);
+                    xyz zPlus = ns[Back] >= 0 ? p[ns[Back]].r - p[i].r : make_xyz(0, 0, 0);
+                    xyz zMinus = ns[Front] >= 0 ? p[ns[Front]].r - p[i].r : make_xyz(0, 0, 0);
+                    
+                    
                     Matrix3 m = getTransform(
-                        front,
-                        right,
-                        up,
-                        back,
-                        left,
-                        down
+                        xPlus,
+                        xMinus,
+                        yPlus,
+                        yMinus,
+                        zPlus,
+                        zMinus
                     );
+
                     p[i].f += m.dot(f) * g.moveFactor;
                     
                     //p[i].f += f;
@@ -764,9 +772,6 @@ int main() {
 
         }
 
-        g.nDetritus = g.nBuffer = g.nEnergy = g.nCells = 0;
-        fx->runEach(countParticles(), pSet);
-
         //If buffer is getting to small, increase it
         //by adding more particles to the simulation
         if (particleBuffer.size() < g.bufferSize) {
@@ -807,6 +812,8 @@ int main() {
         }
 
         if (step % g.saveFreq == 0){
+            g.nDetritus = g.nBuffer = g.nEnergy = g.nCells = 0;
+            fx->runEach(countParticles(), pSet);
             fprintf(countCells, "%i,%i,%i,%i\n", g.nDetritus, g.nBuffer, g.nEnergy, g.nCells);
         }
 

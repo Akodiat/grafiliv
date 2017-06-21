@@ -1,11 +1,11 @@
 ; This is a comment
 dt                          = 0.01			; Timestep size
-w                           = 200,100,200	; World size
+w                           = 400,200,400	; World size
 nParticles                  = 100000
 nInitialOrganisms           = 1000
 bufferSize                  = 10000
 nSteps                      = 100000000
-energyParticleCount         = 15000
+energyParticleCount         = 80000
 initialOrganismDimensions   = 1,1,1
 nGenomeInputs               = 4
 interactionRange            = 20.0
