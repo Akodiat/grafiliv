@@ -1,0 +1,246 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      9716,        238]
+NotebookOptionsPosition[      9079,        211]
+NotebookOutlinePosition[      9482,        228]
+CellTagsIndexPosition[      9439,        225]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"sol", "=", 
+   RowBox[{
+    RowBox[{"Solve", "[", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{"{", "\[IndentingNewLine]", 
+       RowBox[{"(*", 
+        RowBox[{
+        "Maximum", " ", "fall", " ", "speed", " ", "for", " ", "energy", " ", 
+         "particles", " ", "should", " ", "be", " ", "such", " ", "that", " ",
+          "vertical", " ", "distance", " ", "covered", " ", "is", " ", 
+         "equal", " ", "to", " ", "its", " ", "diameter"}], "*)"}], 
+       "\[IndentingNewLine]", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"timestepSize", "*", "energyParticleSpeed"}], " ", 
+         "\[Equal]", " ", 
+         RowBox[{"energyParticleRadius", "*", "2"}]}], ",", 
+        "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+         "Energy", " ", "particles", " ", "whould", " ", "be", " ", "just", 
+          " ", "big", " ", "enought", " ", "for", " ", "them", " ", "all", 
+          " ", "to", " ", "cover", " ", "horizontal", " ", "plane", " ", 
+          RowBox[{"(", "coinciding", ")"}]}], "*)"}], "\[IndentingNewLine]", 
+        RowBox[{"energyParticleRadius", "\[Equal]", 
+         SqrtBox[
+          FractionBox[
+           RowBox[{"worldX", "*", "worldZ"}], "energyParticleCount"]]}], ",", 
+        "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+         "The", " ", "energy", " ", "per", " ", "area", " ", "is", " ", 
+          "total", " ", "energy", " ", "divided", " ", "by", " ", 
+          "horizontal", " ", "plane", " ", "area", " ", "and", " ", "the", 
+          " ", "number", " ", "of", " ", "horizontal", " ", "layers"}], 
+         "*)"}], "\[IndentingNewLine]", 
+        RowBox[{"energyPerArea", "==", 
+         FractionBox[
+          RowBox[{"energyParticleEnergy", " ", "*", 
+           RowBox[{"energyParticleCount", "/", 
+            RowBox[{"(", 
+             FractionBox["worldY", 
+              RowBox[{"2", "energyParticleRadius"}]], ")"}]}]}], 
+          RowBox[{"worldX", "*", "worldZ"}]]}]}], "\[IndentingNewLine]", 
+       "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+       "energyParticleSpeed", ",", "energyParticleEnergy", ",", 
+        "energyParticleRadius"}], "}"}]}], "]"}], "//", "FullSimplify"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"sol", "//", "Transpose"}], "//", "TableForm"}]}], "Input",
+ CellChangeTimes->{{3.7058316718365107`*^9, 3.705831697436635*^9}, 
+   3.705831744788516*^9, {3.7058318082777596`*^9, 3.7058318386605453`*^9}, {
+   3.7058319131182656`*^9, 3.7058321163519545`*^9}, {3.7058321490484314`*^9, 
+   3.70583221237465*^9}, {3.7058322780327587`*^9, 3.7058324135599017`*^9}, {
+   3.7058325584170527`*^9, 3.7058325715530214`*^9}, {3.7058326045868225`*^9, 
+   3.705832646960161*^9}, {3.7058327008436007`*^9, 3.705832717025841*^9}, {
+   3.705833003034754*^9, 3.7058330070786324`*^9}, {3.70583306007314*^9, 
+   3.705833147313799*^9}, {3.7058332169855776`*^9, 3.7058332219945264`*^9}, {
+   3.7058332554169965`*^9, 3.7058332916014824`*^9}, {3.705833339449931*^9, 
+   3.7058333532224283`*^9}, {3.705833391610696*^9, 3.705833396241664*^9}, {
+   3.70583344209359*^9, 3.705833473126737*^9}, {3.705833507915332*^9, 
+   3.705833582845078*^9}, {3.7058336400986977`*^9, 3.7058336414499955`*^9}, {
+   3.7058337174015512`*^9, 3.7058338008029537`*^9}, {3.705833991831428*^9, 
+   3.705834002149703*^9}, {3.7058348496732635`*^9, 3.70583486433983*^9}, {
+   3.705834998025072*^9, 3.7058350283093166`*^9}, {3.7058360805472183`*^9, 
+   3.7058360828499765`*^9}, {3.7058362356809964`*^9, 3.705836279178299*^9}, {
+   3.705836331114531*^9, 3.705836407228801*^9}, {3.7058367723323812`*^9, 
+   3.7058367794246564`*^9}}],
+
+Cell[BoxData[
+ TagBox[GridBox[{
+    {
+     RowBox[{"energyParticleSpeed", "\[Rule]", 
+      FractionBox[
+       RowBox[{"2", " ", 
+        SqrtBox[
+         FractionBox[
+          RowBox[{"worldX", " ", "worldZ"}], "energyParticleCount"]]}], 
+       "timestepSize"]}]},
+    {
+     RowBox[{"energyParticleEnergy", "\[Rule]", 
+      RowBox[{
+       FractionBox["1", "2"], " ", "energyPerArea", " ", "worldY", " ", 
+       SqrtBox[
+        FractionBox[
+         RowBox[{"worldX", " ", "worldZ"}], "energyParticleCount"]]}]}]},
+    {
+     RowBox[{"energyParticleRadius", "\[Rule]", 
+      SqrtBox[
+       FractionBox[
+        RowBox[{"worldX", " ", "worldZ"}], "energyParticleCount"]]}]}
+   },
+   GridBoxAlignment->{
+    "Columns" -> {{Left}}, "ColumnsIndexed" -> {}, "Rows" -> {{Baseline}}, 
+     "RowsIndexed" -> {}},
+   GridBoxSpacings->{"Columns" -> {
+       Offset[0.27999999999999997`], {
+        Offset[2.0999999999999996`]}, 
+       Offset[0.27999999999999997`]}, "ColumnsIndexed" -> {}, "Rows" -> {
+       Offset[0.2], {
+        Offset[0.4]}, 
+       Offset[0.2]}, "RowsIndexed" -> {}}],
+  Function[BoxForm`e$, 
+   TableForm[BoxForm`e$]]]], "Output",
+ CellChangeTimes->{
+  3.705832054607286*^9, {3.705832190822737*^9, 3.7058322128651295`*^9}, {
+   3.7058322789040947`*^9, 3.7058323134695916`*^9}, {3.705832381489993*^9, 
+   3.705832414391199*^9}, 3.705832572413885*^9, {3.705832619039584*^9, 
+   3.705832647728899*^9}, {3.705832711801828*^9, 3.705832717734522*^9}, 
+   3.7058333570317445`*^9, 3.70583339687728*^9, {3.7058334651367216`*^9, 
+   3.7058334735035686`*^9}, {3.7058335097195954`*^9, 3.705833583287053*^9}, 
+   3.705833641944009*^9, 3.705833719943553*^9, 3.705834003725216*^9, {
+   3.7058348571649246`*^9, 3.7058348663618*^9}, {3.705835020499221*^9, 
+   3.705835029090065*^9}, 3.7058360968249245`*^9, 3.7058366339099245`*^9}]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"sol", "/.", 
+  RowBox[{"{", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"worldX", "\[Rule]", "400"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"worldY", "\[Rule]", "200"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"worldZ", "\[Rule]", "400"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"energyParticleCount", "\[Rule]", "70000"}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"energyPerArea", "\[Rule]", " ", "0.2"}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"timestepSize", "\[Rule]", "0.01"}]}], "\[IndentingNewLine]", 
+   "}"}]}]], "Input",
+ CellChangeTimes->{{3.7058340061060114`*^9, 3.705834125687007*^9}, {
+  3.7058341568545017`*^9, 3.705834230173568*^9}, {3.705834407942501*^9, 
+  3.705834477325954*^9}, {3.705835135743347*^9, 3.70583517587971*^9}, {
+  3.705835216280184*^9, 3.7058352250385675`*^9}, {3.7058366483678145`*^9, 
+  3.7058367143997054`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"energyParticleSpeed", "\[Rule]", "302.3715784073818`"}], ",", 
+    RowBox[{"energyParticleEnergy", "\[Rule]", "30.237157840738178`"}], ",", 
+    RowBox[{"energyParticleRadius", "\[Rule]", 
+     FractionBox["4", 
+      SqrtBox["7"]]}]}], "}"}], "}"}]], "Output",
+ CellChangeTimes->{
+  3.7058340070639505`*^9, {3.7058340494213667`*^9, 3.7058340772383337`*^9}, {
+   3.7058342019599333`*^9, 3.7058342315618987`*^9}, {3.705834421966634*^9, 
+   3.7058344781136885`*^9}, 3.705835094780093*^9, {3.7058351370481*^9, 
+   3.7058351768086224`*^9}, {3.705835217227065*^9, 3.705835225939431*^9}, {
+   3.705836649935341*^9, 3.705836715353266*^9}}]
+}, Open  ]],
+
+Cell["Current setup gives following energy per area:", "Text",
+ CellChangeTimes->{{3.7058343053180585`*^9, 3.705834310341416*^9}, {
+  3.7058345181333494`*^9, 3.70583452650891*^9}, {3.705834559941079*^9, 
+  3.7058345617252717`*^9}, {3.705834797861328*^9, 3.7058348017730646`*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"With", "[", 
+  RowBox[{
+   RowBox[{"{", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"energyParticleSpeed", "=", "400"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"timestepSize", "=", "0.01"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"energyParticleEnergy", " ", "=", "0.5"}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"energyParticleCount", "=", "70000"}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"worldX", "=", "400"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"worldZ", "=", "400"}]}], "\[IndentingNewLine]", "}"}], ",", 
+   FractionBox[
+    RowBox[{"energyParticleEnergy", " ", "*", "energyParticleCount"}], 
+    RowBox[{"worldX", "*", "worldZ"}]]}], "]"}]], "Input",
+ CellChangeTimes->{{3.705834264078701*^9, 3.7058343141595736`*^9}, {
+   3.705834350169891*^9, 3.7058343898479714`*^9}, {3.7058346789932337`*^9, 
+   3.705834715889491*^9}, 3.7058347941766443`*^9}],
+
+Cell[BoxData["0.21875`"], "Output",
+ CellChangeTimes->{3.705834390260376*^9, 3.7058348032214375`*^9}]
+}, Open  ]]
+},
+Evaluator->"Local 2",
+WindowSize->{1447, 1096},
+WindowMargins->{{Automatic, 941}, {257, Automatic}},
+Magnification:>1.5 Inherited,
+FrontEndVersion->"11.0 for Microsoft Windows (64-bit) (September 21, 2016)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 3669, 71, 472, "Input"],
+Cell[4252, 95, 1839, 44, 242, "Output"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[6128, 144, 893, 17, 249, "Input"],
+Cell[7024, 163, 702, 14, 69, "Output"]
+}, Open  ]],
+Cell[7741, 180, 279, 3, 45, "Text"],
+Cell[CellGroupData[{
+Cell[8045, 187, 914, 18, 289, "Input"],
+Cell[8962, 207, 101, 1, 45, "Output"]
+}, Open  ]]
+}
+]
+*)
+
