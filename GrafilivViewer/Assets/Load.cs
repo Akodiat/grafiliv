@@ -33,6 +33,8 @@ public class Load : MonoBehaviour {
 
     public Text eggCounter;
 
+    public GameObject terrain;
+
 
     [SerializeField]
     private InputField frameField;
@@ -86,7 +88,6 @@ public class Load : MonoBehaviour {
         recordDir = Directory.CreateDirectory(Application.dataPath + "/record");
 
         frame = 0;
-
     }
     // Update is called once per frame
     void Update () {
