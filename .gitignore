@@ -3,6 +3,11 @@
 ###########
 output/
 organisms/
+orgDeaths/
+dump/
+stateDump/
+countCells.csv
+monitorParticle.csv
 
 ########
 # Unity
