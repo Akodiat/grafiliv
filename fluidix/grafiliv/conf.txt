@@ -1,11 +1,11 @@
 ; This is a comment
 dt                          = 0.01			; Timestep size
-w                           = 400,200,400	; World size
-nParticles                  = 100000
-nInitialOrganisms           = 1000
-bufferSize                  = 10000
+w                           = 500,200,500	; World size
+nParticles                  = 100
+nInitialOrganisms           = 1
+bufferSize                  = 100
 nSteps                      = 100000000
-energyParticleCount         = 80000
+energyParticleCount         = 1
 initialOrganismDimensions   = 1,1,1
 nGenomeInputs               = 4
 interactionRange            = 20.0
@@ -19,7 +19,7 @@ groundRepulsiveForce        = 150.0
 initialCellEnergy           = 4.0
 minCellEnergy               = 2.0
 minDetritusEnergy           = 0
-energyParticleEnergy        = 0.5
+energyParticleEnergy        = 0.8
 energyParticleRadius        = 1.5
 cellExistenceThreshold      = 0.0
 cellMetabolism              = 0.2

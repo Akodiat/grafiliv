@@ -29,18 +29,17 @@ int step;
 #define turnIntoDetritus(p) {       \
     p.particleType = Detritus;      \
     p.density = g.fluidDensity * 2; \
+    p.alpha = 0.5f; \
     p.organism = -1;                \
 }                                   \
 
 // Turn a particle into energy type
 #define resetEnergy(p) {               \
     p.particleType = Energy;           \
-    p.r.x = rnd_uniform() * g.w.x;     \
-    p.r.y += g.w.y;                    \
-    p.r.z = rnd_uniform() * g.w.z;     \
     p.energy = g.energyParticleEnergy; \
     p.radius = g.energyParticleRadius; \
-    p.density = 10.0f;                 \
+    p.density = 0.0f;                 \
+    p.alpha = 0.5f;                 \
 }
 
 // Turn a particle into buffer type
@@ -58,6 +57,7 @@ int step;
     p.density = g.fluidDensity;        \
     p.signal = 0.0f;                   \
     p.color = 0.5f;                    \
+    p.alpha = 0.5f;                    \
     p.radius = 1.0f;                   \
     p.organism = -1;                   \
 }
@@ -65,10 +65,13 @@ int step;
 // Update position r of particles given
 // velocity v and force f
 FUNC_EACH(integrate,
-    p.v += p.f * g.dt;
+    if (p.particleType == Energy)
+        p.v = make_xyz(0, 2*p.radius / g.dt, 0);
+    else
+        p.v += p.f * g.dt;
     p.r += p.v * g.dt;
     p.f = make_xyz(0, 0, 0);
-    p.v *= 0.97f;
+    p.v *= 0.97f; //friction
     )
 
 // Decrease energy through metabolism in
@@ -79,6 +82,10 @@ FUNC_EACH(handleEnergy,
     switch (p.particleType) {
     case Cell:
         //printf("Cell energy: %.2f\n", p.energy);
+        if (p.type == Photo && !p.isOwershadowed) {
+            p.energy += g.energyParticleEnergy * p.radius * p.radius * PI * g.dt;
+            //printf("getting some energy\n");
+        }
         p.energy -= p.metabolism * g.dt;
         if (p.energy < g.minCellEnergy)
             turnIntoDetritus(p)
@@ -90,11 +97,31 @@ FUNC_EACH(handleEnergy,
         if (p.energy <= g.minDetritusEnergy)
             p.toBuffer = true;
         break;
-    case Energy:
-        if (p.energy <= 0)
-            p.toBuffer = true;
     }
-    )
+ )
+
+//When an energy particle reaches the top, add its energy
+//to the photosynthetic cell it belongs to.
+//If it collided before reaching the top, it will not have
+//Any energy left.
+FUNC_GENERIC(handleEnergyParticles,
+    if (p1[i].particleType == Energy) {
+        int iCell = p1[i].lightToPhoto;
+        if (p1[iCell].particleType != Cell) {
+            turnIntoBuffer(p1[i]);
+            p1[i].toBuffer = true;
+        }
+        else  {
+            if (p1[i].r.y > g.w.y) {
+                //printf("Collided with ceiling\n");
+                p1[i].isOwershadowed = false;
+                p1[i].r = p1[iCell].r + make_xyz(0, p1[iCell].radius, 0);
+            }
+            p1[iCell].isOwershadowed = p1[i].isOwershadowed;
+            p1[i].color = !p1[i].isOwershadowed;
+        }
+    }
+)
 
 // Particles float depending on their density
 FUNC_EACH(buoyancy,
@@ -127,16 +154,10 @@ FUNC_EACH(boundary,
     // Check for wierd 1.#R values... NaN?
     if (isWeirdParticle(p)) {
         printf("Wierd particle at (%.2f, %.2f, %.2f) type=%i\n", p.r.x, p.r.y, p.r.z, p.particleType);
-        if (p.particleType == Energy) {
-            p.r.y = rnd_uniform() * g.w.y;
-            resetEnergy(p);
-        }
-        else {
-            turnIntoBuffer(p);
-            p.toBuffer = true;
-        }
+        turnIntoBuffer(p);
+        p.toBuffer = true;
     } 
-    if (p.particleType != Buffer) {
+    if (p.particleType != Buffer && p.particleType != Energy) {
         /*
         if (p.r.x < 0)     p.r.x = g.w.x;
         if (p.r.x > g.w.x) p.r.x = 0;
@@ -148,21 +169,14 @@ FUNC_EACH(boundary,
         if (p.r.z < 0) p.f.z += WALL * (0 - p.r.z);
         if (p.r.z > g.w.z) p.f.z += WALL * (g.w.z - p.r.z);
 
-        if (p.particleType == Energy) {
-            if (p.r.y < 0) {
-                resetEnergy(p);
-            }
-        }
-        else {
-            if (p.r.y < 0) {
-				p.v.y = 0.9f * (0 - p.r.y) / g.dt;
-				p.r.y = 0;
-			}
-            if (p.r.y > g.w.y) {
-				p.v.y = 0.9f * (g.w.y - p.r.y) / g.dt;
-				p.r.y = g.w.y;
-			}
-        }
+        if (p.r.y < 0) {
+			p.v.y = 0.9f * (0 - p.r.y) / g.dt;
+			p.r.y = 0;
+		}
+        if (p.r.y > g.w.y) {
+			p.v.y = 0.9f * (g.w.y - p.r.y) / g.dt;
+			p.r.y = g.w.y;
+		}
     }
     else if (p.r.y < -2 * g.w.y) p.r.y += g.w.y;
 )
@@ -177,6 +191,7 @@ FUNC_PAIR(particlePair,
             (g.repulsiveForce * (1 - dr / (p1.radius + p2.radius))),
             0
         );
+        //If both particles are cells
         if (p1.particleType == Cell && p2.particleType == Cell)
         {
             //Cells from the same organism
@@ -217,27 +232,42 @@ FUNC_PAIR(particlePair,
         }
         //If p1 is a cell
         else if (p1.particleType == Cell && dr <= (p1.radius + p2.radius)) {
-            if ((p1.type == Photo && p2.particleType == Energy) ||
-                (p1.type == Digest  && p2.particleType == Detritus)
-                )
+            if (p1.type == Digest && p2.particleType == Detritus)
             {
                 float need = getEnergyNeed(p1, p2);
                 transmitFloat(p2.energy, p1.energy, need);
             }
+            //If there is a cell in the way there should not be any sunlight
+            if (p2.particleType == Energy && p1_index != p2.lightToPhoto){
+                //printf("Cell in the way, loosing energy\n");
+                p1.isOwershadowed = true;
+                f = make_xyz(0, 0, 0);
+            }
         }
         //If p2 is a cell
         else if (p2.particleType == Cell && dr <= (p1.radius + p2.radius)) {
-            if ((p2.type == Photo && p1.particleType == Energy) ||
-                (p2.type == Digest  && p1.particleType == Detritus)
-                )
+            if (p2.type == Digest && p1.particleType == Detritus)
             {
                 float need = getEnergyNeed(p2, p1);
                 transmitFloat(p1.energy, p2.energy, need);
             }
+            if (p1.particleType == Energy && p2_index != p1.lightToPhoto){
+                //printf("Cell in the way, loosing energy\n");
+                p1.isOwershadowed = true;
+                f = make_xyz(0, 0, 0);
+            }
         }
-
-        if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, 1.0f/dr);
-        if (p2.particleType == Cell && p2.type == Sense) addFloat(p2.signal, 1.0f/dr);
+        /*
+        if (sqrt(pow(p1.r.x - p2.r.x, 2) + pow(p1.r.y - p2.r.y, 2) <= (p1.radius + p2.radius)){
+            if (p2.particleType == Energy && p2.particleType != Energy && p1_index != p2.lightToPhoto) {
+                printf("Cell in the way, loosing energy\n");
+                p2.energy = 0;
+                f = make_xyz(0, 0, 0);
+            }
+        }
+        */
+        if (p1.particleType == Cell && p1.type == Sense) addFloat(p1.signal, p2.energy);
+        if (p2.particleType == Cell && p2.type == Sense) addFloat(p2.signal, p1.energy);
 
         addVector(p1.f, f);
         addVector(p2.f, -f);
@@ -256,6 +286,7 @@ FUNC_SURFACE(collideGround,
 void setDefaultCellValues(Particle *cell) {
     //cell->radius = 1.0f;
     cell->energy = g.initialCellEnergy;
+    cell->alpha = 1.0f;
     //cell->density = g.fluidDensity * 1.10f;
     cell->particleType = Cell;
 }
@@ -367,23 +398,24 @@ pair<int, vector<int>> createCellsFromGenotype(
     xyz origin, ParticleBuffer *particleBuffer,
     Particle *p, Genome *genome, NerveSystem *nerveSys, OrganismMap *organisms)
 {
-    int nParticlesNeeded = genome->getMaxCellsReq();
-    if (nParticlesNeeded > particleBuffer->size()) {
+    int nCellsNeeded = genome->getMaxCellsReq();
+    // need at most twice if all cells are photosynthetic
+    if (2*nCellsNeeded > particleBuffer->size()) {
         cerr << "Not enought particles in buffer\n" << endl;
     }
     vector<int> cellBuff;
 /*  
-    while (nParticlesNeeded) {
+    while (nCellsNeeded) {
         int particle;
         if (particleBuffer->try_pop(particle)) {
             cellBuff.push_back(particle);
-            nParticlesNeeded--;
+            nCellsNeeded--;
         }
         else
             printf("Failed to retrive from buffer, trying again\n");
     }
 */
-    while (nParticlesNeeded--) {
+    while (nCellsNeeded--) {
         int particle = particleBuffer->front();
         particleBuffer->pop();
         cellBuff.push_back(particle); 
@@ -426,6 +458,18 @@ pair<int, vector<int>> createCellsFromGenotype(
 
             if (cell->type == Sense)
                 nSensors++;
+            //If it is a photosynthetic cell, create a light particle to
+            //check if path is clear to the sky.
+            else if (cell->type == Photo) {
+                int particle = particleBuffer->front();
+                particleBuffer->pop();
+                resetEnergy(p[particle]);
+                p[particle].radius = cell->radius;
+                p[particle].isOwershadowed = false;
+                cell->isOwershadowed = false;
+                p[particle].r = cell->r + make_xyz(0, cell->radius * 2, 0);
+                p[particle].lightToPhoto = iFromCoord(x, y, z);
+            }
 
             float volume = cell->radius * cell->radius * cell->radius * PI * 4 / 3;
             cell->metabolism += volume * 0.05f;
@@ -635,6 +679,7 @@ int main() {
     else if (choice == 'n') {
         step = 0;
         int i = 0;
+        /*
         int neededEnergy = g.energyParticleCount;
 
         // Initialize energy particles
@@ -643,7 +688,7 @@ int main() {
             resetEnergy(p[i]);
             i++;
         }
-
+        */
         // Turn the rest of the particles into buffer
         while (i < g.nParticles) {
             turnIntoBuffer(p[i]);
@@ -658,13 +703,15 @@ int main() {
 
     fx->applyParticleArray(pSet);
 
+    fx->outputFrame("dump");
+
     FILE *countCells = fopen("countCells.csv", "w");
     fprintf(countCells, "nDetritus,nBuffer,nEnergy,nCells\n");
 
     //FILE *monitorParticle = fopen("monitorParticle.csv", "w");
     //fprintf(monitorParticle, "particleType,r.x,r.y,r.z,v.x,v.y,v.z,f.x,f.y,f.z,color,radius,alpha,density,energy,energyIn,energyOut,maxEnergy,signal,metabolism,organism,toBuffer,link0,link1,link2,link3,link4,link5,type\n");
 
-    while(step++ < g.nSteps) {
+    while(step < g.nSteps) {
         fx->runEach(boundary(), pSet);
         fx->runSurface(collideGround(), terrain.y, pSet);
         fx->runPair(particlePair(), pSet, pSet, g.interactionRange);
@@ -755,6 +802,7 @@ int main() {
 
         fx->runEach(buoyancy(), pSet);
         fx->runEach(handleEnergy(), pSet);
+        fx->runGeneric(handleEnergyParticles(), g.nParticles, pSet);
         fx->runEach(integrate(), pSet);
         
         //if (step % 100 == 0) { ParticleBuffer empty; swap(particleBuffer, empty); }
@@ -772,11 +820,13 @@ int main() {
 
         }
 
+        int nonBufferParticles = g.nParticles - particleBuffer.size();
+
         //If buffer is getting to small, increase it
         //by adding more particles to the simulation
-        if (particleBuffer.size() < g.bufferSize) {
+        if (particleBuffer.size() < g.nCells * 1.2f) {
             int currentParticleCount = g.nParticles;
-            g.nParticles += g.bufferSize;
+            g.nParticles += g.nCells * 1.5f - particleBuffer.size();
             printf("Increasing particle array size from %i to %i\n", currentParticleCount, g.nParticles);
             fx->resizeParticleSet(pSet, g.nParticles);
             p = fx->getParticleArray(pSet);
@@ -786,12 +836,12 @@ int main() {
             }
             fx->applyParticleArray(pSet);
         }
-        else if (particleBuffer.size() > g.nParticles / 2) {
+        else if (particleBuffer.size() > 2 * g.nCells) {
             //printf("Decreasing buffer size from %i", g.nParticles);
             int nBuffersAtEnd = 0;
             //printf("End particle type: %i (buffer is %i)\n", p[g.nParticles - nBuffersAtEnd - 1].particleType, Buffer);
             while (p[g.nParticles - nBuffersAtEnd - 1].particleType == Buffer &&
-                particleBuffer.size() - nBuffersAtEnd > g.nParticles / 2
+                particleBuffer.size() - nBuffersAtEnd > 2 * g.nCells
             ){
                 nBuffersAtEnd++;
             }
@@ -844,7 +894,7 @@ int main() {
             p[mI].links[4], p[mI].links[5], p[mI].type
         );
         */
-
+        //fx->outputFrame("dump");
         if (step % 10000 == 0) {
             fx->outputFrame("dump");
             dumpCompleteState(p, g.nParticles, step);
@@ -854,6 +904,8 @@ int main() {
             printf("All organisms died. End of simulation\n");
             break;
         }
+
+        step++;
     }
     fclose(countCells);
     //fclose(monitorParticle);

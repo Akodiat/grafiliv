@@ -77,6 +77,8 @@ struct Particle {
     float signal;
     float metabolism;
     int organism;
+    int lightToPhoto;
+    bool isOwershadowed;
     bool toBuffer;
     int links[6];
     CellType type;
