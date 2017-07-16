@@ -57,6 +57,9 @@ public class terrainLoader : MonoBehaviour
 
                 this.transform.position = new Vector3(w.x / 2 - posDiff.x, -posDiff.y, w.z / 2 + posDiff.z/2);
 
+                GameObject water = GameObject.Find("water");
+                water.transform.position = new Vector3(w.x / 2, w.y / 2, w.z / 2);
+
                 break;
             }
         }

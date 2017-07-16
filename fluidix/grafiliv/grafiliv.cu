@@ -826,7 +826,7 @@ int main() {
         //by adding more particles to the simulation
         if (particleBuffer.size() < g.nCells * 1.2f) {
             int currentParticleCount = g.nParticles;
-            g.nParticles += g.nCells * 1.5f - particleBuffer.size();
+            g.nParticles += g.nCells * 2.0f - particleBuffer.size();
             printf("Increasing particle array size from %i to %i\n", currentParticleCount, g.nParticles);
             fx->resizeParticleSet(pSet, g.nParticles);
             p = fx->getParticleArray(pSet);
@@ -878,7 +878,7 @@ int main() {
             outputParticles(p, g.nParticles, step);
         }
         else if (step % 10000 == 0) {
-            printf("+\n");
+            printf("+ step %i\n", step);
             outputParticles(p, g.nParticles, step);
         }
         else if (step % 100 == 0) printf(".");

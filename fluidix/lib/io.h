@@ -311,54 +311,86 @@ void loadCompleteState(OrganismMap *organisms, Particle *p, ParticleBuffer *part
     while (getline(particlesFileStream, line))
     {
         if (i >= fx->getParticleCount(pSet)){
-            fx->resizeParticleSet(pSet, i);
-            printf("Loading state, increasing particle count to %i", i);
+            fx->resizeParticleSet(pSet, i+1);
+            printf("Loading state, increasing particle count to %i\n", i+1);
+            fx->applyParticleArray(pSet);
         }
-        vector<string> items = split(line, ",");
 
-        p[i].particleType = (ParticleType)stoi(items[indexOf("particleType", headings)]);
-        p[i].r.x = stof(items[indexOf("r.x", headings)]);
-        p[i].r.y = stof(items[indexOf("r.y", headings)]);
-        p[i].r.z = stof(items[indexOf("r.z", headings)]);
-        p[i].v.x = stof(items[indexOf("v.x", headings)]);
-        p[i].v.y = stof(items[indexOf("v.y", headings)]);
-        p[i].v.z = stof(items[indexOf("v.z", headings)]);
-        p[i].f.x = stof(items[indexOf("f.x", headings)]);
-        p[i].f.y = stof(items[indexOf("f.y", headings)]);
-        p[i].f.z = stof(items[indexOf("f.z", headings)]);
-        p[i].color = stoi(items[indexOf("color", headings)]);
-        p[i].radius = stof(items[indexOf("radius", headings)]);
-        p[i].alpha = stof(items[indexOf("alpha", headings)]);
-        p[i].density = stof(items[indexOf("density", headings)]);
-        p[i].energy = stof(items[indexOf("energy", headings)]);
-        p[i].energyIn = stof(items[indexOf("energyIn", headings)]);
-        p[i].energyOut = stof(items[indexOf("energyOut", headings)]);
-        p[i].maxEnergy = stof(items[indexOf("maxEnergy", headings)]);
-        p[i].signal = stof(items[indexOf("signal", headings)]);
-        p[i].metabolism = stof(items[indexOf("metabolism", headings)]);
-        p[i].organism = stoi(items[indexOf("organism", headings)]);
-        p[i].toBuffer = stoi(items[indexOf("toBuffer", headings)]);
-        p[i].links[0] = stoi(items[indexOf("link0", headings)]);
-        p[i].links[1] = stoi(items[indexOf("link1", headings)]);
-        p[i].links[2] = stoi(items[indexOf("link2", headings)]);
-        p[i].links[3] = stoi(items[indexOf("link3", headings)]);
-        p[i].links[4] = stoi(items[indexOf("link4", headings)]);
-        p[i].links[5] = stoi(items[indexOf("link5", headings)]);
-        p[i].type = (CellType)stoi(items[indexOf("type", headings)]);
+        try {
+            vector<string> items = split(line, ",");
+            printf("line split\n");
+
+            printf(items[indexOf("particleType", headings)].c_str());
+            printf(".1.");
+            printf("int: %i\n", stoi(items[indexOf("particleType", headings)]));
+            printf("Number of particles: %i\ti: %i\n", fx->getParticleCount(pSet), i);
+            printf("Previous x pos: %.2f", p[i].r.x);
+            p[i].particleType = (ParticleType)stoi(items[indexOf("particleType", headings)]); printf("a");
+            p[i].r.x = stof(items[indexOf("r.x", headings)]); printf("b");
+            p[i].r.y = stof(items[indexOf("r.y", headings)]); printf("c");
+            p[i].r.z = stof(items[indexOf("r.z", headings)]); printf("d");
+            p[i].v.x = stof(items[indexOf("v.x", headings)]); printf("e");
+            p[i].v.y = stof(items[indexOf("v.y", headings)]); printf("f");
+
+            printf("1/4!\n");
+
+            p[i].v.z = stof(items[indexOf("v.z", headings)]);
+            p[i].f.x = stof(items[indexOf("f.x", headings)]);
+            p[i].f.y = stof(items[indexOf("f.y", headings)]);
+            p[i].f.z = stof(items[indexOf("f.z", headings)]);
+            p[i].color = stoi(items[indexOf("color", headings)]);
+            p[i].radius = stof(items[indexOf("radius", headings)]);
+            p[i].alpha = stof(items[indexOf("alpha", headings)]);
+            p[i].density = stof(items[indexOf("density", headings)]);
+
+            printf("2/4!\n");
+
+            p[i].energy = stof(items[indexOf("energy", headings)]);
+            p[i].energyIn = stof(items[indexOf("energyIn", headings)]);
+            p[i].energyOut = stof(items[indexOf("energyOut", headings)]);
+            p[i].maxEnergy = stof(items[indexOf("maxEnergy", headings)]);
+            p[i].signal = stof(items[indexOf("signal", headings)]);
+            p[i].metabolism = stof(items[indexOf("metabolism", headings)]);
+            p[i].organism = stoi(items[indexOf("organism", headings)]);
+            p[i].toBuffer = stoi(items[indexOf("toBuffer", headings)]);
+            p[i].links[0] = stoi(items[indexOf("link0", headings)]);
+            p[i].links[1] = stoi(items[indexOf("link1", headings)]);
+            p[i].links[2] = stoi(items[indexOf("link2", headings)]);
+            p[i].links[3] = stoi(items[indexOf("link3", headings)]);
+            p[i].links[4] = stoi(items[indexOf("link4", headings)]);
+            p[i].links[5] = stoi(items[indexOf("link5", headings)]);
+            p[i].type = (CellType)stoi(items[indexOf("type", headings)]);
+        }
+        catch (exception& e)
+        {
+            cout << "Exception: " << e.what() << endl;
+            cerr << "Ouch!" << endl;
+        }
+        catch (const std::string& e) {
+            cerr << "Ouch2!" << e << endl;
+        }
+        catch (...) {
+
+            cerr << "Ouch2!" << endl;
+        }
+
+        printf("Properties loaded for particle #%i\n", i);
 
         //If cell, build up organism map
         if (p[i].particleType == Cell && p[i].organism != -1) {
             Organism o;
+            int orgID = p[i].organism;
             try {
-                o = organisms->at(p[i].organism);
+                o = organisms->at(orgID);
             }
             catch (const std::out_of_range& e) {
+                printf("Loading organism #%i\n", p[i].organism);
                 Genome genome;
                 NerveSystem nervousSystem;
                 int parent, birthStep;
 
                 char path[256];
-                sprintf(path, "organisms/org%d.json", p[i].organism);
+                sprintf(path, "organisms/org%d.json", orgID);
                 loadGenomeAndNerves(path, &genome, &nervousSystem, &parent, &birthStep);
 
                 o.genome = genome;
@@ -366,11 +398,10 @@ void loadCompleteState(OrganismMap *organisms, Particle *p, ParticleBuffer *part
                 o.parent = parent;
                 o.health = g.orgInitHealth - g.dt * (*step - birthStep);
 
-                if (*currGenomeIndex < p[i].organism)
-                    *currGenomeIndex = p[i].organism;
+                if (*currGenomeIndex < orgID)
+                    *currGenomeIndex = orgID;
             }
             o.cells.push_back(i);
-            int orgID = p[i].organism;
             organisms->operator[](orgID) = o;
         }
         //If instead buffer, build upp the buffer queue
