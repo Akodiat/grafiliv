@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 public enum CellType
 {
-    Photo, Digest, Sting, Vascular, Fat, Sense, Egg,
+    Photo, Digest, Sting, Vascular, Fat, Sense, Egg, Buoyancy,
     N_CELL_TYPES
 };
 public enum ParticleType
@@ -25,6 +25,7 @@ public class Load : MonoBehaviour {
     public Material mSensor;
     public Material mEgg;
     public Material mVascular;
+    public Material mBouyancy;
 
     public Material mPellet;
 
@@ -76,6 +77,8 @@ public class Load : MonoBehaviour {
                 return mEgg;
             case CellType.Vascular:
                 return mVascular;
+            case CellType.Buoyancy:
+                return mBouyancy;
             default:
                 return null;
         }

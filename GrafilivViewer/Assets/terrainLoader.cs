@@ -17,7 +17,7 @@ public class terrainLoader : MonoBehaviour
         
         while (sr.Peek() >= 0) 
         { 
-            try
+            try 
             {
                 line = sr.ReadLine();
             }
@@ -53,9 +53,10 @@ public class terrainLoader : MonoBehaviour
                 Vector3 newSize = this.transform.localScale;
 
                 Vector3 posDiff = newSize - oldSize;
-                //posDiff.z += oldSize.z;
+                posDiff.z += oldSize.z;
 
-                this.transform.position = new Vector3(w.x / 2 - posDiff.x, -posDiff.y, w.z / 2 + posDiff.z/2);
+                //this.transform.position = new Vector3(w.x / 2 - posDiff.x, -posDiff.y, w.z / 2 + posDiff.z/2);
+                this.transform.position = new Vector3(w.x / 2, -2, w.z / 2);
 
                 GameObject water = GameObject.Find("water");
                 water.transform.position = new Vector3(w.x / 2, w.y / 2, w.z / 2);
@@ -63,6 +64,32 @@ public class terrainLoader : MonoBehaviour
                 break;
             }
         }
+        Mesh mesh = GetComponent<MeshFilter>().mesh;
+        List<Vector3> oldVertices = new List<Vector3>(mesh.vertices);
+        List<Vector3> newVertices = new List<Vector3>();
+
+        sr = new StreamReader("terrain/mesh.csv");      
+        line = sr.ReadLine(); //Read heading line so that we don't try to parse it 
+        int i = 0;
+        while (sr.Peek() >= 0)
+        {
+            try
+            {
+                line = sr.ReadLine();
+            }
+            catch (FileNotFoundException)
+            {
+                return;
+            }
+            TerrainVertex p = new TerrainVertex(line);
+
+            newVertices.Add(p.pos);
+        }
+        print("Old vertices length:");
+        print(oldVertices.Count);
+        print("New vertices length:");
+        print(newVertices.Count);
+        //mesh.vertices = vertexList;
     }
 
     // Update is called once per frame
@@ -70,4 +97,19 @@ public class terrainLoader : MonoBehaviour
     {
 
     }
+}
+
+[System.Serializable]
+public class TerrainVertex
+{
+    public TerrainVertex(string s)
+    {
+        string[] fields = s.Split(',');
+        pos = new Vector3(
+            float.Parse(fields[0]),
+            float.Parse(fields[1]),
+            float.Parse(fields[2])
+        );
+    }
+    public Vector3 pos;
 }
